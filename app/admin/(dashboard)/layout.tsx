@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef, useMemo } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { Sidebar } from "@/components/ui/sidebar";
+import { AdminHeader } from "@/components/ui/admin-header";
 import { Toaster } from "sonner";
 import { PermissionModule } from "@/types/permissions";
 import {
@@ -164,7 +165,10 @@ export default function AdminDashboardLayout({
   return (
     <div className="flex min-h-screen max-h-screen">
       <Sidebar />
-      <main className="flex-1 overflow-auto bg-white">{children}</main>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
+        <AdminHeader />
+        <main className="flex-1 overflow-auto bg-white">{children}</main>
+      </div>
       <Toaster richColors position="top-right" />
     </div>
   );

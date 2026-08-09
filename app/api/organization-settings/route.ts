@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import connectDB from "@/lib/mongodb";
 import OrganizationSettings from "@/models/OrganizationSettings";
+import { DEFAULT_ORGANIZATION_SETTINGS } from "@/lib/organizationDefaults";
 
 // GET - Get organization settings
 export async function GET() {
@@ -15,31 +16,10 @@ export async function GET() {
     await connectDB();
 
     // Get the first (and only) organization settings document
-    let settings = await OrganizationSettings.findOne();
+    const settings = await OrganizationSettings.findOne();
 
     if (!settings) {
-      // Return default settings if none exist
-      return NextResponse.json({
-        companyName: "",
-        logo: "",
-        address: {
-          street: "",
-          city: "",
-          state: "",
-          pincode: "",
-          country: "India",
-        },
-        phone: "",
-        email: "",
-        gstin: "",
-        pan: "",
-        bankDetails: {
-          accountName: "",
-          accountNumber: "",
-          bankName: "",
-          ifscCode: "",
-        },
-      });
+      return NextResponse.json(DEFAULT_ORGANIZATION_SETTINGS);
     }
 
     return NextResponse.json(settings);

@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +14,6 @@ import {
   Building2,
   MapPin,
   Phone,
-  Mail,
   FileText,
   Loader2,
   Upload,
@@ -156,6 +153,13 @@ export function OrganizationSettingsForm({
     setSettings((prev) => ({ ...prev, logo: "" }));
   };
 
+  const handleUseAppLogo = () => {
+    setSelectedFile(null);
+    setLocalPreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setSettings((prev) => ({ ...prev, logo: "/roop-anand-logo.png" }));
+  };
+
   const handleChange = (field: string, value: string) => {
     if (field.includes(".")) {
       const [parent, child] = field.split(".");
@@ -269,16 +273,25 @@ export function OrganizationSettingsForm({
                   )}
                 </div>
                 <div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    {isUploading ? "Uploading..." : "Upload Logo"}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {isUploading ? "Uploading..." : "Upload Logo"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleUseAppLogo}
+                    >
+                      Use App Logo
+                    </Button>
+                  </div>
                   <input
                     ref={fileInputRef}
                     type="file"

@@ -91,6 +91,17 @@ interface OrganizationSettings {
 const defaultOrganization: OrganizationSettings = {
   companyName: "Roop Anand",
   logo: "/roop-anand-logo.png",
+  address: {
+    street: "Shahganj, Mahendru, Ashok Rajpath",
+    city: "Patna",
+    state: "Bihar",
+    pincode: "800006",
+    country: "India",
+  },
+  phone: "9334079737",
+  email: "hi@roopanand.in",
+  gstin: "27AAAPA1234A1Z5",
+  pan: "AWYQNP5748I",
 };
 
 const formatCurrency = (amount: number) =>
@@ -130,7 +141,10 @@ async function getOrganizationSettings(): Promise<OrganizationSettings> {
     ...defaultOrganization,
     ...settings,
     companyName: settings.companyName || defaultOrganization.companyName,
-    logo: new URL("/roop-anand-logo.png", window.location.origin).href,
+    logo: new URL(
+      settings.logo || defaultOrganization.logo || "/roop-anand-logo.png",
+      window.location.origin
+    ).href,
   };
 }
 

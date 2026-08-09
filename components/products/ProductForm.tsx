@@ -33,6 +33,14 @@ interface Product {
   };
   status: "Active" | "Inactive";
   stockQuantity: number;
+  gst?: GstMaster | null;
+}
+
+interface GstMaster {
+  _id: string;
+  name: string;
+  rate: number;
+  status: "Active" | "Inactive";
 }
 
 interface ProductFormProps {
@@ -50,17 +58,20 @@ export function ProductForm({
 }: ProductFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    basePrice: "",
-    lowestSellingPrice: "",
-    status: "Active" as "Active" | "Inactive",
-    stockQuantity: "",
-  });
+  const [formData, setFormData] = useState(() => ({
+    title: product?.title || "",
+    description: product?.description || "",
+    basePrice: product?.price?.base?.toString() || "",
+    lowestSellingPrice:
+      product?.price?.lowestSellingPrice?.toString() || "",
+    status: product?.status || ("Active" as "Active" | "Inactive"),
+    stockQuantity: product?.stockQuantity?.toString() || "0",
+    gstId: product?.gst?._id || "",
+  }));
+  const [gstMasters, setGstMasters] = useState<GstMaster[]>([]);
 
   // Photo management
-  const [existingPhoto, setExistingPhoto] = useState<string>("");
+  const [existingPhoto] = useState<string>(product?.photo || "");
   const [localPreview, setLocalPreview] = useState<string>("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -77,34 +88,16 @@ export function ProductForm({
   });
 
   useEffect(() => {
-    if (product) {
-      setFormData({
-        title: product.title || "",
-        description: product.description || "",
-        basePrice: product.price?.base?.toString() || "",
-        lowestSellingPrice: product.price?.lowestSellingPrice?.toString() || "",
-        status: product.status || "Active",
-        stockQuantity: product.stockQuantity?.toString() || "0",
-      });
-      setExistingPhoto(product.photo || "");
-      setLocalPreview("");
-      setSelectedFile(null);
-      setIsRemoving(false);
-    } else {
-      setFormData({
-        title: "",
-        description: "",
-        basePrice: "",
-        lowestSellingPrice: "",
-        status: "Active",
-        stockQuantity: "0",
-      });
-      setExistingPhoto("");
-      setLocalPreview("");
-      setSelectedFile(null);
-      setIsRemoving(false);
-    }
-  }, [product]);
+    const fetchGstMasters = async () => {
+      try {
+        const response = await fetch("/api/gst-masters");
+        if (response.ok) setGstMasters(await response.json());
+      } catch (error) {
+        console.error("Error fetching GST masters:", error);
+      }
+    };
+    fetchGstMasters();
+  }, []);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -204,6 +197,7 @@ export function ProductForm({
       },
       status: formData.status,
       stockQuantity: parseInt(formData.stockQuantity, 10) || 0,
+      gst: formData.gstId || null,
     });
   };
 
@@ -371,7 +365,7 @@ export function ProductForm({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="basePrice" className="text-sm text-slate-600">
-              Base Price (₹) *
+              Base Price before GST (₹) *
             </Label>
             <Input
               id="basePrice"
@@ -421,6 +415,39 @@ export function ProductForm({
             </motion.p>
           )}
         </AnimatePresence>
+
+        <div className="space-y-2">
+          <Label htmlFor="gstMaster" className="text-sm text-slate-600">
+            GST
+          </Label>
+          <Select
+            value={formData.gstId || "none"}
+            onValueChange={(value) =>
+              handleChange("gstId", value === "none" ? "" : value)
+            }
+          >
+            <SelectTrigger id="gstMaster">
+              <SelectValue placeholder="Select GST rate" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No GST (0%)</SelectItem>
+              {gstMasters
+                .filter(
+                  (gst) =>
+                    gst.status === "Active" || gst._id === product?.gst?._id
+                )
+                .map((gst) => (
+                <SelectItem key={gst._id} value={gst._id}>
+                  {gst.name} ({gst.rate}%)
+                  {gst.status === "Inactive" ? " — Inactive" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-400">
+            Manage rates from the GST Master page.
+          </p>
+        </div>
       </motion.div>
 
       {/* Status & Stock */}

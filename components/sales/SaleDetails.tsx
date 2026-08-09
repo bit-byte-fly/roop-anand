@@ -32,6 +32,10 @@ interface SaleItem {
   productTitle: string;
   quantity: number;
   pricePerUnit: number;
+  taxableAmount?: number;
+  gstName?: string;
+  gstRate?: number;
+  gstAmount?: number;
   totalPrice: number;
 }
 
@@ -48,8 +52,11 @@ interface Sale {
     phone: string;
     email?: string;
     address?: string;
+    billingAddress?: string;
   };
   paymentMethod: "Cash" | "Online";
+  subtotal?: number;
+  totalGst?: number;
   totalAmount: number;
   createdAt: string;
 }
@@ -148,10 +155,10 @@ export function SaleDetails({ sale, isOpen, onClose }: SaleDetailsProps) {
                   <span>{sale.customer.email}</span>
                 </div>
               )}
-              {sale.customer.address && (
+              {(sale.customer.billingAddress || sale.customer.address) && (
                 <div className="flex items-center gap-2 text-slate-700 col-span-2">
                   <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
-                  <span>{sale.customer.address}</span>
+                  <span>{sale.customer.billingAddress || sale.customer.address}</span>
                 </div>
               )}
             </div>
@@ -189,6 +196,11 @@ export function SaleDetails({ sale, isOpen, onClose }: SaleDetailsProps) {
                     <p className="text-sm text-slate-500">
                       {formatCurrency(item.pricePerUnit)} × {item.quantity}
                     </p>
+                    {(item.gstRate || 0) > 0 && (
+                      <p className="text-xs text-indigo-600">
+                        {item.gstName || "GST"} {item.gstRate}% · {formatCurrency(item.gstAmount || 0)}
+                      </p>
+                    )}
                   </div>
                   <span className="font-semibold text-slate-700">
                     {formatCurrency(item.totalPrice)}
@@ -198,13 +210,10 @@ export function SaleDetails({ sale, isOpen, onClose }: SaleDetailsProps) {
             </div>
 
             {/* Total */}
-            <div className="flex justify-between items-center mt-4 pt-4 border-t">
-              <span className="text-lg font-medium text-slate-600">
-                Total Amount
-              </span>
-              <span className="text-2xl font-bold text-indigo-600">
-                {formatCurrency(sale.totalAmount)}
-              </span>
+            <div className="mt-4 space-y-2 border-t pt-4">
+              <div className="flex justify-between text-sm text-slate-600"><span>Subtotal</span><span>{formatCurrency(sale.subtotal ?? sale.totalAmount)}</span></div>
+              <div className="flex justify-between text-sm text-slate-600"><span>GST</span><span>{formatCurrency(sale.totalGst || 0)}</span></div>
+              <div className="flex justify-between items-center border-t pt-2"><span className="text-lg font-medium text-slate-600">Total Amount</span><span className="text-2xl font-bold text-indigo-600">{formatCurrency(sale.totalAmount)}</span></div>
             </div>
           </Card>
 

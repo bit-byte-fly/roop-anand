@@ -5,6 +5,7 @@ import Sale, { ISale } from '@/models/Sale';
 import Employee from '@/models/Employee';
 import '@/models/Product';
 import { verifyMobileAuth } from '@/lib/verifyMobileAuth';
+import { calculateSalePricing } from '@/lib/salePricing';
 
 // Type for populated product in sale items
 interface PopulatedProduct {
@@ -19,6 +20,10 @@ interface PopulatedSaleItem {
   productTitle: string;
   quantity: number;
   pricePerUnit: number;
+  taxableAmount: number;
+  gstName?: string;
+  gstRate: number;
+  gstAmount: number;
   totalPrice: number;
 }
 
@@ -26,14 +31,6 @@ interface PopulatedSaleItem {
 interface ProductAssignment {
   product: Types.ObjectId;
   quantity: number;
-}
-
-// Helper for sale item input
-interface SaleItemInput {
-  productId: string;
-  productTitle: string;
-  quantity: number;
-  pricePerUnit: number;
 }
 
 /**
@@ -91,6 +88,10 @@ export async function GET(request: NextRequest) {
         productPhoto: item.product?.photo || null,
         quantity: item.quantity,
         pricePerUnit: item.pricePerUnit,
+        taxableAmount: item.taxableAmount ?? item.totalPrice,
+        gstName: item.gstName,
+        gstRate: item.gstRate || 0,
+        gstAmount: item.gstAmount || 0,
         totalPrice: item.totalPrice,
       }));
 
@@ -99,6 +100,8 @@ export async function GET(request: NextRequest) {
         items,
         customer: sale.customer,
         paymentMethod: sale.paymentMethod,
+        subtotal: sale.subtotal ?? sale.totalAmount,
+        totalGst: sale.totalGst || 0,
         totalAmount: sale.totalAmount,
         createdAt: sale.createdAt,
       };
@@ -201,6 +204,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const billingAddress = customer.billingAddress?.trim() || customer.address?.trim();
+    if (!billingAddress) {
+      return NextResponse.json(
+        { success: false, message: 'Billing address is required' },
+        { status: 400 }
+      );
+    }
+
     // Validate phone format (basic validation)
     const phoneRegex = /^[0-9]{10}$/;
     if (!phoneRegex.test(customer.phone.replace(/\D/g, '').slice(-10))) {
@@ -270,34 +281,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate total amount
-    const totalAmount = items.reduce(
-      (sum: number, item: { quantity: number; pricePerUnit: number }) => 
-        sum + (item.quantity * item.pricePerUnit), 
-      0
-    );
-
-    // Create sale items
-    const saleItems = (items as SaleItemInput[]).map((item) => ({
-      product: new Types.ObjectId(item.productId),
-      productTitle: item.productTitle,
-      quantity: item.quantity,
-      pricePerUnit: item.pricePerUnit,
-      totalPrice: item.quantity * item.pricePerUnit,
-    }));
+    const pricing = await calculateSalePricing(items);
+    if (pricing.missingProducts.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Products not found: ${pricing.missingProducts.join(', ')}`,
+          missingItems: pricing.missingProducts,
+        },
+        { status: 400 }
+      );
+    }
 
     // Create the sale
     const sale = await Sale.create({
       employee: user.id,
-      items: saleItems,
+      items: pricing.saleItems,
       customer: {
         name: customer.name.trim(),
         phone: customer.phone.trim(),
         email: customer.email?.trim() || undefined,
-        address: customer.address?.trim() || undefined,
+        billingAddress,
       },
       paymentMethod,
-      totalAmount,
+      subtotal: pricing.subtotal,
+      totalGst: pricing.totalGst,
+      totalAmount: pricing.totalAmount,
     }) as ISale;
 
     // Deduct quantities from employee's products
@@ -322,11 +331,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (paymentMethod === 'Cash') {
-      employee.holdings.cash += totalAmount;
+      employee.holdings.cash += pricing.totalAmount;
     } else {
-      employee.holdings.online += totalAmount;
+      employee.holdings.online += pricing.totalAmount;
     }
-    employee.holdings.total += totalAmount;
+    employee.holdings.total += pricing.totalAmount;
 
     await employee.save();
 
@@ -335,15 +344,21 @@ export async function POST(request: NextRequest) {
       message: 'Sale recorded successfully',
       sale: {
         _id: sale._id.toString(),
-        items: saleItems.map((item) => ({
+        items: pricing.saleItems.map((item) => ({
           productId: item.product,
           productTitle: item.productTitle,
           quantity: item.quantity,
           pricePerUnit: item.pricePerUnit,
+          taxableAmount: item.taxableAmount,
+          gstName: item.gstName,
+          gstRate: item.gstRate,
+          gstAmount: item.gstAmount,
           totalPrice: item.totalPrice,
         })),
         customer: sale.customer,
         paymentMethod: sale.paymentMethod,
+        subtotal: sale.subtotal,
+        totalGst: sale.totalGst,
         totalAmount: sale.totalAmount,
         createdAt: sale.createdAt,
       },

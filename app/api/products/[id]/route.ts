@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import connectDB from "@/lib/mongodb";
 import Product from "@/models/Product";
+import GstMaster from "@/models/GstMaster";
 import { authOptions } from "@/lib/authOptions";
 import { deleteUploadThingFile } from "@/lib/utapi";
 
@@ -20,7 +21,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     await connectDB();
 
-    const product = await Product.findById(id);
+    void GstMaster;
+    const product = await Product.findById(id).populate(
+      "gst",
+      "name rate status"
+    );
 
     if (!product) {
       return NextResponse.json(
@@ -67,6 +72,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       price,
       status,
       stockQuantity,
+      gst,
     } = body;
 
     // Validate price logic if both are provided
@@ -74,6 +80,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (price.lowestSellingPrice > price.base) {
         return NextResponse.json(
           { error: "Lowest selling price cannot be greater than base price" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (gst) {
+      const gstMaster = await GstMaster.findById(gst);
+      const isExistingAssignment = currentProduct.gst?.toString() === gst;
+      if (!gstMaster || (gstMaster.status !== "Active" && !isExistingAssignment)) {
+        return NextResponse.json(
+          { error: "Please select a valid active GST master" },
           { status: 400 }
         );
       }
@@ -103,6 +120,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       };
     }
 
+    if (gst !== undefined) {
+      updateData.gst = gst || null;
+    }
+
     // If photo is explicitly set to empty/null, remove it
     if (photo === "" || photo === null) {
       updateData.photo = undefined;
@@ -126,6 +147,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    await product.populate("gst", "name rate status");
     return NextResponse.json(product);
   } catch (error: unknown) {
     console.error("Error updating product:", error);

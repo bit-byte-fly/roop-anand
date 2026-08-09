@@ -42,6 +42,12 @@ interface Product {
   };
   status: "Active" | "Inactive";
   stockQuantity: number;
+  gst?: {
+    _id: string;
+    name: string;
+    rate: number;
+    status: "Active" | "Inactive";
+  } | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -4,6 +4,7 @@ import connectDB from "@/lib/mongodb";
 import Sale from "@/models/Sale";
 import Employee from "@/models/Employee";
 import { authOptions } from "@/lib/authOptions";
+import { calculateSalePricing } from "@/lib/salePricing";
 
 // GET all sales
 export async function GET(request: NextRequest) {
@@ -70,6 +71,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const billingAddress = customer.billingAddress?.trim() || customer.address?.trim();
+    if (!billingAddress) {
+      return NextResponse.json(
+        { error: "Billing address is required" },
+        { status: 400 }
+      );
+    }
+
     if (!paymentMethod) {
       return NextResponse.json(
         { error: "Payment method is required" },
@@ -112,39 +121,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate total amount
-    const totalAmount = items.reduce(
-      (sum: number, item: { quantity: number; pricePerUnit: number }) => 
-        sum + (item.quantity * item.pricePerUnit), 
-      0
-    );
-
-    // Create sale items
-    const saleItems = items.map((item: { 
-      productId: string; 
-      productTitle: string; 
-      quantity: number; 
-      pricePerUnit: number 
-    }) => ({
-      product: item.productId,
-      productTitle: item.productTitle,
-      quantity: item.quantity,
-      pricePerUnit: item.pricePerUnit,
-      totalPrice: item.quantity * item.pricePerUnit,
-    }));
+    const pricing = await calculateSalePricing(items);
+    if (pricing.missingProducts.length > 0) {
+      return NextResponse.json(
+        { error: `Products not found: ${pricing.missingProducts.join(", ")}` },
+        { status: 400 }
+      );
+    }
 
     // Create the sale
     const sale = await Sale.create({
       employee: employeeId,
-      items: saleItems,
+      items: pricing.saleItems,
       customer: {
         name: customer.name,
         phone: customer.phone,
         email: customer.email || undefined,
-        address: customer.address || undefined,
+        billingAddress,
       },
       paymentMethod,
-      totalAmount,
+      subtotal: pricing.subtotal,
+      totalGst: pricing.totalGst,
+      totalAmount: pricing.totalAmount,
     });
 
     // Deduct quantities from employee's products
@@ -169,11 +167,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (paymentMethod === "Cash") {
-      employee.holdings.cash += totalAmount;
+      employee.holdings.cash += pricing.totalAmount;
     } else {
-      employee.holdings.online += totalAmount;
+      employee.holdings.online += pricing.totalAmount;
     }
-    employee.holdings.total += totalAmount;
+    employee.holdings.total += pricing.totalAmount;
 
     await employee.save();
 

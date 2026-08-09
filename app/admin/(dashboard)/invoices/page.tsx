@@ -90,7 +90,13 @@ export default function InvoicesPage() {
       dateOfIssue: invoice.dateOfIssue,
       dueDate: invoice.dueDate,
       customer: invoice.customer,
-      items: invoice.items,
+      items: invoice.items.map((item) => ({
+        ...item,
+        product:
+          typeof item.product === "string"
+            ? item.product
+            : (item.product as { _id?: string } | undefined)?._id,
+      })),
       taxRate: invoice.taxRate || 0,
       discount: invoice.discount || 0,
       notes: invoice.notes || "",

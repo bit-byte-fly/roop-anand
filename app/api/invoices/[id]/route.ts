@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import connectDB from "@/lib/mongodb";
 import Invoice from "@/models/Invoice";
+import { calculateInvoicePricing } from "@/lib/invoicePricing";
 
 // GET - Get single invoice by ID
 export async function GET(
@@ -74,12 +75,17 @@ export async function PUT(
       );
     }
 
+    if (!data.customer?.address?.trim()) {
+      return NextResponse.json(
+        { error: "Billing address is required" },
+        { status: 400 }
+      );
+    }
+
     // Calculate totals
-    const subtotal = data.items.reduce(
-      (sum: number, item: { amount: number }) => sum + item.amount,
-      0
-    );
-    const taxAmount = data.taxRate ? (subtotal * data.taxRate) / 100 : 0;
+    const pricing = await calculateInvoicePricing(data.items);
+    const subtotal = pricing.subtotal;
+    const taxAmount = pricing.taxAmount;
     const discount = data.discount || 0;
     const total = subtotal + taxAmount - discount;
     const amountDue = total;
@@ -96,23 +102,9 @@ export async function PUT(
       phone: data.customer.phone || undefined,
       email: data.customer.email || undefined,
     };
-    invoice.items = data.items.map(
-      (item: {
-        product?: string;
-        description: string;
-        quantity: number;
-        unitPrice: number;
-        amount: number;
-      }) => ({
-        product: item.product || undefined,
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        amount: item.amount,
-      })
-    );
+    invoice.items = pricing.items;
     invoice.subtotal = subtotal;
-    invoice.taxRate = data.taxRate || 0;
+    invoice.taxRate = 0;
     invoice.taxAmount = taxAmount;
     invoice.discount = discount;
     invoice.total = total;

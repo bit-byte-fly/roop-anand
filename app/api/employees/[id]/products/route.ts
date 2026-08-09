@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import connectDB from "@/lib/mongodb";
 import Employee from "@/models/Employee";
 import Product from "@/models/Product";
+import GstMaster from "@/models/GstMaster";
 import { authOptions } from "@/lib/authOptions";
 
 interface RouteParams {
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
     await connectDB();
+    void GstMaster;
 
     const body = await request.json();
     const { productId, quantity } = body;
@@ -77,7 +79,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Populate the products for the response
     const updatedEmployee = await Employee.findById(id)
-      .populate("products.product")
+      .populate({
+        path: "products.product",
+        populate: { path: "gst", select: "name rate status" },
+      })
       .select("-password");
 
     return NextResponse.json({
@@ -104,9 +109,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
     await connectDB();
+    void GstMaster;
 
     const employee = await Employee.findById(id)
-      .populate("products.product")
+      .populate({
+        path: "products.product",
+        populate: { path: "gst", select: "name rate status" },
+      })
       .select("-password");
 
     if (!employee) {
@@ -116,7 +125,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    return NextResponse.json(employee);
+    const responseEmployee = employee.toObject();
+    responseEmployee.products = responseEmployee.products.filter(
+      (assignment) => assignment.product !== null
+    );
+
+    return NextResponse.json(responseEmployee);
   } catch (error) {
     console.error("Error fetching employee products:", error);
     return NextResponse.json(
@@ -184,7 +198,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     await employee.save();
 
     const updatedEmployee = await Employee.findById(id)
-      .populate("products.product")
+      .populate({
+        path: "products.product",
+        populate: { path: "gst", select: "name rate status" },
+      })
       .select("-password");
 
     return NextResponse.json({

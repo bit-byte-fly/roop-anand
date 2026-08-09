@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Employee from '@/models/Employee';
 import Product, { IProduct } from '@/models/Product';
+import GstMaster, { IGstMaster } from '@/models/GstMaster';
 import { verifyMobileAuth } from '@/lib/verifyMobileAuth';
 
 // Populated product type
 interface PopulatedProduct {
-  product: IProduct;
+  product: IProduct & { gst?: IGstMaster | null };
   quantity: number;
   assignedAt: Date;
 }
@@ -31,13 +32,18 @@ export async function GET(request: NextRequest) {
 
     // Ensure Product model is registered
     void Product;
+    void GstMaster;
 
     // Fetch employee with populated products
     const employee = await Employee.findById(user.id)
       .select('products')
       .populate({
         path: 'products.product',
-        select: 'title description photo price status',
+        select: 'title description photo price status gst',
+        populate: {
+          path: 'gst',
+          select: 'name rate status',
+        },
       });
 
     if (!employee) {
@@ -60,6 +66,13 @@ export async function GET(request: NextRequest) {
           photo: product.photo,
           price: product.price,
           status: product.status,
+          gst: product.gst
+            ? {
+                _id: product.gst._id.toString(),
+                name: product.gst.name,
+                rate: product.gst.rate,
+              }
+            : null,
           assignedQuantity: item.quantity,
           assignedAt: item.assignedAt,
         };

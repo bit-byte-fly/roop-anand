@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import connectDB from "@/lib/mongodb";
 import Invoice from "@/models/Invoice";
+import { calculateInvoicePricing } from "@/lib/invoicePricing";
 
 // GET - Get all invoices with optional filters
 export async function GET(request: NextRequest) {
@@ -91,6 +92,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!data.customer?.address?.trim()) {
+      return NextResponse.json(
+        { error: "Billing address is required" },
+        { status: 400 }
+      );
+    }
+
     if (!data.dueDate) {
       return NextResponse.json(
         { error: "Due date is required" },
@@ -99,11 +107,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate totals
-    const subtotal = data.items.reduce(
-      (sum: number, item: { amount: number }) => sum + item.amount,
-      0
-    );
-    const taxAmount = data.taxRate ? (subtotal * data.taxRate) / 100 : 0;
+    const pricing = await calculateInvoicePricing(data.items);
+    const subtotal = pricing.subtotal;
+    const taxAmount = pricing.taxAmount;
     const discount = data.discount || 0;
     const total = subtotal + taxAmount - discount;
     const amountDue = total;
@@ -120,23 +126,9 @@ export async function POST(request: NextRequest) {
         phone: data.customer.phone || undefined,
         email: data.customer.email || undefined,
       },
-      items: data.items.map(
-        (item: {
-          product?: string;
-          description: string;
-          quantity: number;
-          unitPrice: number;
-          amount: number;
-        }) => ({
-          product: item.product || undefined,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          amount: item.amount,
-        })
-      ),
+      items: pricing.items,
       subtotal,
-      taxRate: data.taxRate || 0,
+      taxRate: 0,
       taxAmount,
       discount,
       total,

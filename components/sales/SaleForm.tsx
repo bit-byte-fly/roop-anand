@@ -38,6 +38,11 @@ interface Product {
     base: number;
     lowestSellingPrice: number;
   };
+  gst?: {
+    _id: string;
+    name: string;
+    rate: number;
+  } | null;
 }
 
 interface EmployeeProduct {
@@ -60,6 +65,8 @@ interface SaleItem {
   pricePerUnit: number;
   maxQuantity: number;
   photo?: string;
+  gstName?: string;
+  gstRate: number;
 }
 
 interface SaleFormProps {
@@ -125,7 +132,10 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
       const res = await fetch(`/api/employees/${employeeId}/products`);
       if (res.ok) {
         const data = await res.json();
-        setSelectedEmployee(data);
+        const validProducts = (data.products || []).filter(
+          (assignment: EmployeeProduct) => assignment.product?._id
+        );
+        setSelectedEmployee({ ...data, products: validProducts });
       }
     } catch (error) {
       console.error("Error fetching employee products:", error);
@@ -135,28 +145,42 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
   const addItem = () => {
     if (!selectedEmployee || selectedEmployee.products.length === 0) return;
 
-    // Find a product not already added
-    const availableProducts = selectedEmployee.products.filter(
-      (ep) => !items.find((item) => item.productId === ep.product._id)
+    const validProducts = selectedEmployee.products.filter(
+      (assignment) => assignment.product?._id
+    );
+    const allProductsAdded = validProducts.every((assignment) =>
+      items.some((item) => item.productId === assignment.product._id)
     );
 
-    if (availableProducts.length === 0) {
+    if (allProductsAdded) {
       setError("All available products have been added");
       return;
     }
 
-    const firstProduct = availableProducts[0];
-    setItems([
-      ...items,
-      {
-        productId: firstProduct.product._id,
-        productTitle: firstProduct.product.title,
-        quantity: 1,
-        pricePerUnit: firstProduct.product.price.base,
-        maxQuantity: firstProduct.quantity,
-        photo: firstProduct.product.photo,
-      },
-    ]);
+    setItems((currentItems) => {
+      const nextProduct = validProducts.find(
+        (assignment) =>
+          !currentItems.some(
+            (item) => item.productId === assignment.product._id
+          )
+      );
+
+      if (!nextProduct) return currentItems;
+
+      return [
+        ...currentItems,
+        {
+          productId: nextProduct.product._id,
+          productTitle: nextProduct.product.title,
+          quantity: 1,
+          pricePerUnit: nextProduct.product.price.base,
+          maxQuantity: nextProduct.quantity,
+          photo: nextProduct.product.photo,
+          gstName: nextProduct.product.gst?.name,
+          gstRate: nextProduct.product.gst?.rate || 0,
+        },
+      ];
+    });
     setError("");
   };
 
@@ -184,6 +208,8 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
           maxQuantity: product.quantity,
           quantity: Math.min(newItems[index].quantity, product.quantity),
           photo: product.product.photo,
+          gstName: product.product.gst?.name,
+          gstRate: product.product.gst?.rate || 0,
         };
       }
     } else if (field === "quantity") {
@@ -201,12 +227,21 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
     setItems(newItems);
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return items.reduce(
       (sum, item) => sum + item.quantity * item.pricePerUnit,
       0
     );
   };
+
+  const calculateGst = () =>
+    items.reduce(
+      (sum, item) =>
+        sum + (item.quantity * item.pricePerUnit * item.gstRate) / 100,
+      0
+    );
+
+  const calculateTotal = () => calculateSubtotal() + calculateGst();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -240,6 +275,11 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
       return;
     }
 
+    if (!customerAddress.trim()) {
+      setError("Billing address is required");
+      return;
+    }
+
     // Validate quantities
     for (const item of items) {
       if (item.quantity < 1) {
@@ -266,7 +306,7 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
         name: customerName.trim(),
         phone: customerPhone.trim(),
         email: customerEmail.trim() || undefined,
-        address: customerAddress.trim() || undefined,
+        billingAddress: customerAddress.trim(),
       },
       paymentMethod,
     });
@@ -404,10 +444,11 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
                               {selectedEmployee?.products
                                 .filter(
                                   (p) =>
-                                    p.product._id === item.productId ||
-                                    !items.find(
-                                      (i) => i.productId === p.product._id
-                                    )
+                                    p.product &&
+                                    (p.product._id === item.productId ||
+                                      !items.find(
+                                        (i) => i.productId === p.product._id
+                                      ))
                                 )
                                 .map((ep) => (
                                   <SelectItem
@@ -441,7 +482,7 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
                         {/* Price */}
                         <div>
                           <Label className="text-xs text-slate-500 mb-1 block">
-                            Price (₹)
+                            Price before GST (₹)
                           </Label>
                           <Input
                             type="number"
@@ -468,7 +509,11 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                         <span className="text-sm font-medium text-slate-700">
-                          {formatCurrency(item.quantity * item.pricePerUnit)}
+                          {formatCurrency(
+                            item.quantity *
+                              item.pricePerUnit *
+                              (1 + item.gstRate / 100)
+                          )}
                         </span>
                       </div>
                     </div>
@@ -479,11 +524,10 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
 
             {/* Total */}
             <div className="flex justify-end p-3 bg-slate-50 rounded-lg">
-              <div className="text-right">
-                <span className="text-sm text-slate-500">Total Amount:</span>
-                <p className="text-xl font-bold text-indigo-600">
-                  {formatCurrency(calculateTotal())}
-                </p>
+              <div className="w-64 space-y-1 text-sm">
+                <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{formatCurrency(calculateSubtotal())}</span></div>
+                <div className="flex justify-between text-slate-500"><span>GST</span><span>{formatCurrency(calculateGst())}</span></div>
+                <div className="flex justify-between border-t pt-1 text-lg font-bold text-indigo-600"><span>Total</span><span>{formatCurrency(calculateTotal())}</span></div>
               </div>
             </div>
           </div>
@@ -554,7 +598,7 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="customerAddress" className="text-sm text-slate-600">
-              Address (Optional)
+              Billing Address *
             </Label>
             <div className="relative">
               <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -562,8 +606,9 @@ export function SaleForm({ onSubmit, isSubmitting, onCancel }: SaleFormProps) {
                 id="customerAddress"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
-                placeholder="Customer address"
+                placeholder="Billing address"
                 className="pl-10"
+                required
               />
             </div>
           </div>

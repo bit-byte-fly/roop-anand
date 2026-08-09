@@ -44,11 +44,15 @@ export interface Invoice {
     email?: string;
   };
   items: Array<{
-    product?: string;
+    product?: string | { _id?: string };
     description: string;
     quantity: number;
     unitPrice: number;
     amount: number;
+    gstName?: string;
+    gstRate?: number;
+    gstAmount?: number;
+    lineTotal?: number;
   }>;
   subtotal: number;
   taxRate?: number;

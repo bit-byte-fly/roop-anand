@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import connectDB from "@/lib/mongodb";
 import Product from "@/models/Product";
+import GstMaster from "@/models/GstMaster";
 import { authOptions } from "@/lib/authOptions";
 
 // GET all products
@@ -14,7 +15,10 @@ export async function GET() {
 
     await connectDB();
 
-    const products = await Product.find({}).sort({ createdAt: -1 });
+    void GstMaster;
+    const products = await Product.find({})
+      .populate("gst", "name rate status")
+      .sort({ createdAt: -1 });
 
     return NextResponse.json(products);
   } catch (error) {
@@ -44,6 +48,7 @@ export async function POST(request: NextRequest) {
       price,
       status,
       stockQuantity,
+      gst,
     } = body;
 
     // Validate required fields
@@ -69,6 +74,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (gst) {
+      const gstMaster = await GstMaster.findOne({ _id: gst, status: "Active" });
+      if (!gstMaster) {
+        return NextResponse.json(
+          { error: "Please select a valid active GST master" },
+          { status: 400 }
+        );
+      }
+    }
+
     const product = await Product.create({
       photo: photo || undefined,
       title,
@@ -79,7 +94,10 @@ export async function POST(request: NextRequest) {
       },
       status: status || "Active",
       stockQuantity: stockQuantity || 0,
+      gst: gst || undefined,
     });
+
+    await product.populate("gst", "name rate status");
 
     return NextResponse.json(product, { status: 201 });
   } catch (error: unknown) {

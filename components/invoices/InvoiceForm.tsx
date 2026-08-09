@@ -39,6 +39,11 @@ interface Product {
     base: number;
     lowestSellingPrice: number;
   };
+  gst?: {
+    _id: string;
+    name: string;
+    rate: number;
+  } | null;
 }
 
 interface InvoiceItem {
@@ -47,6 +52,10 @@ interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+  gstName?: string;
+  gstRate?: number;
+  gstAmount?: number;
+  lineTotal?: number;
 }
 
 interface Customer {
@@ -205,6 +214,8 @@ export function InvoiceForm({
           description: product.title,
           unitPrice: product.price.base,
           amount: newItems[index].quantity * product.price.base,
+          gstName: product.gst?.name,
+          gstRate: product.gst?.rate || 0,
         };
         return { ...prev, items: newItems };
       });
@@ -231,7 +242,10 @@ export function InvoiceForm({
   };
 
   const subtotal = formData.items.reduce((sum, item) => sum + item.amount, 0);
-  const taxAmount = (subtotal * formData.taxRate) / 100;
+  const taxAmount = formData.items.reduce(
+    (sum, item) => sum + (item.amount * (item.gstRate || 0)) / 100,
+    0
+  );
   const total = subtotal + taxAmount - formData.discount;
 
   const formatCurrency = (amount: number) => {
@@ -247,6 +261,11 @@ export function InvoiceForm({
 
     if (!formData.customer.name.trim()) {
       alert("Customer name is required");
+      return;
+    }
+
+    if (!formData.customer.address.trim()) {
+      alert("Billing address is required");
       return;
     }
 
@@ -345,7 +364,7 @@ export function InvoiceForm({
                 />
               </div>
               <div className="col-span-2">
-                <Label htmlFor="customerAddress">Address</Label>
+                <Label htmlFor="customerAddress">Billing Address *</Label>
                 <Input
                   id="customerAddress"
                   value={formData.customer.address}
@@ -353,6 +372,7 @@ export function InvoiceForm({
                     handleCustomerChange("address", e.target.value)
                   }
                   placeholder="Street address"
+                  required
                 />
               </div>
               <div>
@@ -457,6 +477,8 @@ export function InvoiceForm({
                           if (v === "custom") {
                             handleItemChange(index, "product", "");
                             handleItemChange(index, "description", "");
+                            handleItemChange(index, "gstName", "");
+                            handleItemChange(index, "gstRate", 0);
                           } else {
                             handleProductSelect(index, v);
                           }
@@ -482,6 +504,11 @@ export function InvoiceForm({
                         }
                         placeholder="Item description"
                       />
+                      {(item.gstRate || 0) > 0 && (
+                        <p className="mt-1 text-xs text-indigo-600">
+                          {item.gstName || "GST"} {item.gstRate}%
+                        </p>
+                      )}
                     </div>
                     <div className="col-span-2">
                       <Input
@@ -514,7 +541,9 @@ export function InvoiceForm({
                     </div>
                     <div className="col-span-2">
                       <div className="px-3 py-2 bg-slate-50 rounded-md text-sm font-medium">
-                        {formatCurrency(item.amount)}
+                        {formatCurrency(
+                          item.amount * (1 + (item.gstRate || 0) / 100)
+                        )}
                       </div>
                     </div>
                     <div className="col-span-1">
@@ -547,23 +576,7 @@ export function InvoiceForm({
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-600">Tax Rate (%)</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={formData.taxRate}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        taxRate: parseFloat(e.target.value) || 0,
-                      }))
-                    }
-                    className="w-24"
-                  />
-                </div>
+                <span className="text-slate-600">GST (product-specific)</span>
                 <span className="font-medium">{formatCurrency(taxAmount)}</span>
               </div>
               <div className="flex justify-between items-center gap-4">

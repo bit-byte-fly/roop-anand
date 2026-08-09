@@ -6,6 +6,11 @@ export interface IInvoiceItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+  gstMaster?: Types.ObjectId;
+  gstName?: string;
+  gstRate: number;
+  gstAmount: number;
+  lineTotal: number;
 }
 
 export interface IInvoice extends Document {
@@ -68,6 +73,15 @@ const InvoiceItemSchema = new Schema<IInvoiceItem>(
       type: Number,
       required: [true, "Amount is required"],
     },
+    gstMaster: {
+      type: Schema.Types.ObjectId,
+      ref: "GstMaster",
+      default: undefined,
+    },
+    gstName: { type: String, default: undefined },
+    gstRate: { type: Number, default: 0, min: 0 },
+    gstAmount: { type: Number, default: 0, min: 0 },
+    lineTotal: { type: Number, required: true, min: 0 },
   },
   { _id: false }
 );

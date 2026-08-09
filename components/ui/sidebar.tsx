@@ -16,6 +16,7 @@ import {
   UserCircle,
   ShoppingCart,
   Shield,
+  BadgePercent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,12 @@ const navItems: NavItem[] = [
     title: "Products",
     href: "/admin/products",
     icon: Package,
+    module: "products",
+  },
+  {
+    title: "GST Master",
+    href: "/admin/gst-master",
+    icon: BadgePercent,
     module: "products",
   },
   {

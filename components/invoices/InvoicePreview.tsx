@@ -27,6 +27,10 @@ interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+  gstName?: string;
+  gstRate?: number;
+  gstAmount?: number;
+  lineTotal?: number;
 }
 
 interface Invoice {
@@ -147,7 +151,7 @@ export function InvoicePreview({
       <tr>
         <td style="padding: 16px 12px; border-bottom: 1px solid #e5e7eb; font-weight: 500; color: #4f46e5;">${
           item.description
-        }</td>
+        }${item.gstRate ? `<div style="font-size: 11px; color: #4f46e5; margin-top: 4px;">${item.gstName || "GST"} ${item.gstRate}%</div>` : ""}</td>
         <td style="padding: 16px 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: #374151;">${
           item.quantity
         }</td>
@@ -155,7 +159,7 @@ export function InvoicePreview({
           item.unitPrice
         )}</td>
         <td style="padding: 16px 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #111827;">${formatCurrency(
-          item.amount
+          item.lineTotal ?? item.amount + (item.gstAmount || 0)
         )}</td>
       </tr>
     `
@@ -163,12 +167,10 @@ export function InvoicePreview({
       .join("");
 
     const taxRow =
-      invoice.taxRate && invoice.taxRate > 0
+      invoice.taxAmount && invoice.taxAmount > 0
         ? `
       <tr>
-        <td style="padding: 10px 0; color: #6b7280;">Tax (${
-          invoice.taxRate
-        }%)</td>
+        <td style="padding: 10px 0; color: #6b7280;">GST (product-specific)</td>
         <td style="padding: 10px 0; text-align: right; color: #374151;">${formatCurrency(
           invoice.taxAmount || 0
         )}</td>
@@ -313,7 +315,7 @@ export function InvoicePreview({
                   <th style="padding: 14px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e5e7eb;">Description</th>
                   <th style="padding: 14px 12px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e5e7eb;">Qty</th>
                   <th style="padding: 14px 12px; text-align: right; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e5e7eb;">Unit Price</th>
-                  <th style="padding: 14px 12px; text-align: right; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e5e7eb;">Amount</th>
+                  <th style="padding: 14px 12px; text-align: right; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #e5e7eb;">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -538,6 +540,11 @@ export function InvoicePreview({
                       <p className="font-medium text-indigo-600">
                         {item.description}
                       </p>
+                      {(item.gstRate || 0) > 0 && (
+                        <p className="mt-1 text-xs text-indigo-500">
+                          {item.gstName || "GST"} {item.gstRate}%
+                        </p>
+                      )}
                     </td>
                     <td className="py-4 px-4 text-center text-slate-600">
                       {item.quantity}
@@ -546,7 +553,9 @@ export function InvoicePreview({
                       {formatCurrency(item.unitPrice)}
                     </td>
                     <td className="py-4 px-4 text-right font-semibold text-slate-900">
-                      {formatCurrency(item.amount)}
+                      {formatCurrency(
+                        item.lineTotal ?? item.amount + (item.gstAmount || 0)
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -562,10 +571,10 @@ export function InvoicePreview({
                     {formatCurrency(invoice.subtotal)}
                   </span>
                 </div>
-                {invoice.taxRate && invoice.taxRate > 0 && (
+                {(invoice.taxAmount || 0) > 0 && (
                   <div className="flex justify-between py-2.5 text-sm">
                     <span className="text-slate-500">
-                      Tax ({invoice.taxRate}%)
+                      GST (product-specific)
                     </span>
                     <span className="text-slate-700">
                       {formatCurrency(invoice.taxAmount || 0)}

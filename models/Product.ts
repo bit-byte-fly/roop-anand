@@ -1,4 +1,4 @@
-import mongoose, { Schema, Model, Document } from "mongoose";
+import mongoose, { Schema, Model, Document, Types } from "mongoose";
 
 export interface IProduct extends Document {
   photo?: string;
@@ -8,6 +8,7 @@ export interface IProduct extends Document {
     base: number;
     lowestSellingPrice: number;
   };
+  gst?: Types.ObjectId;
   status: "Active" | "Inactive";
   stockQuantity: number;
   createdAt: Date;
@@ -40,6 +41,11 @@ const ProductSchema = new Schema<IProduct>(
         required: [true, "Lowest selling price is required"],
         min: [0, "Price cannot be negative"],
       },
+    },
+    gst: {
+      type: Schema.Types.ObjectId,
+      ref: "GstMaster",
+      default: undefined,
     },
     status: {
       type: String,

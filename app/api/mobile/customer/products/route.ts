@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import Product from "@/models/Product";
+import GstMaster from "@/models/GstMaster";
 
 /**
  * GET /api/mobile/customer/products
@@ -9,6 +10,7 @@ import Product from "@/models/Product";
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
+    void GstMaster;
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
@@ -35,7 +37,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch products
     const products = await Product.find(query)
-      .select("photo title description price stockQuantity")
+      .select("photo title description price stockQuantity gst")
+      .populate("gst", "name rate")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -50,6 +53,7 @@ export async function GET(request: NextRequest) {
       price: product.price.base,
       inStock: product.stockQuantity > 0,
       stockQuantity: product.stockQuantity,
+      gst: product.gst || null,
     }));
 
     return NextResponse.json({

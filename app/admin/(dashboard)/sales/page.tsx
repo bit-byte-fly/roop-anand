@@ -32,6 +32,10 @@ interface SaleItem {
   productTitle: string;
   quantity: number;
   pricePerUnit: number;
+  taxableAmount?: number;
+  gstName?: string;
+  gstRate?: number;
+  gstAmount?: number;
   totalPrice: number;
 }
 
@@ -48,8 +52,11 @@ interface Sale {
     phone: string;
     email?: string;
     address?: string;
+    billingAddress?: string;
   };
   paymentMethod: "Cash" | "Online";
+  subtotal?: number;
+  totalGst?: number;
   totalAmount: number;
   createdAt: string;
 }

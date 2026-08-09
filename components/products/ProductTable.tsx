@@ -26,6 +26,12 @@ interface Product {
   };
   status: "Active" | "Inactive";
   stockQuantity: number;
+  gst?: {
+    _id: string;
+    name: string;
+    rate: number;
+    status: "Active" | "Inactive";
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -90,6 +96,7 @@ export function ProductTable({
             <TableHead className="w-[100px]">Status</TableHead>
             <TableHead className="hidden md:table-cell">Base Price</TableHead>
             <TableHead className="hidden md:table-cell">Min Price</TableHead>
+            <TableHead className="hidden md:table-cell">GST</TableHead>
             <TableHead>Stock</TableHead>
             <TableHead className="hidden lg:table-cell">Added</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -193,6 +200,11 @@ export function ProductTable({
               </TableCell>
               <TableCell className="hidden md:table-cell text-slate-500">
                 {formatCurrency(product.price.lowestSellingPrice)}
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                  {product.gst ? `${product.gst.name} (${product.gst.rate}%)` : "No GST"}
+                </span>
               </TableCell>
               <TableCell>
                 <span

@@ -5,6 +5,11 @@ export interface ISaleItem {
   productTitle: string;
   quantity: number;
   pricePerUnit: number;
+  taxableAmount: number;
+  gstMaster?: Types.ObjectId;
+  gstName?: string;
+  gstRate: number;
+  gstAmount: number;
   totalPrice: number;
 }
 
@@ -13,6 +18,7 @@ export interface ICustomer {
   phone: string;
   email?: string;
   address?: string;
+  billingAddress?: string;
 }
 
 export interface ISale extends Document {
@@ -20,6 +26,8 @@ export interface ISale extends Document {
   items: ISaleItem[];
   customer: ICustomer;
   paymentMethod: "Cash" | "Online";
+  subtotal: number;
+  totalGst: number;
   totalAmount: number;
   createdAt: Date;
   updatedAt: Date;
@@ -45,6 +53,30 @@ const SaleItemSchema = new Schema<ISaleItem>(
       type: Number,
       required: true,
       min: [0, "Price cannot be negative"],
+    },
+    taxableAmount: {
+      type: Number,
+      required: true,
+      min: [0, "Taxable amount cannot be negative"],
+    },
+    gstMaster: {
+      type: Schema.Types.ObjectId,
+      ref: "GstMaster",
+      default: undefined,
+    },
+    gstName: {
+      type: String,
+      default: undefined,
+    },
+    gstRate: {
+      type: Number,
+      default: 0,
+      min: [0, "GST rate cannot be negative"],
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+      min: [0, "GST amount cannot be negative"],
     },
     totalPrice: {
       type: Number,
@@ -76,6 +108,10 @@ const CustomerSchema = new Schema<ICustomer>(
       type: String,
       trim: true,
     },
+    billingAddress: {
+      type: String,
+      trim: true,
+    },
   },
   { _id: false }
 );
@@ -103,6 +139,17 @@ const SaleSchema = new Schema<ISale>(
       type: String,
       enum: ["Cash", "Online"],
       required: [true, "Payment method is required"],
+    },
+    subtotal: {
+      type: Number,
+      required: true,
+      min: [0, "Subtotal cannot be negative"],
+    },
+    totalGst: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: [0, "GST total cannot be negative"],
     },
     totalAmount: {
       type: Number,

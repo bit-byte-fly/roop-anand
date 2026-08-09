@@ -13,7 +13,8 @@ export interface ICustomerDetails {
 }
 
 export interface INote {
-  by: "admin" | "customer";
+  by: "admin" | "customer" | "employee";
+  senderName?: string;
   content: string;
   createdAt: Date;
 }
@@ -70,8 +71,13 @@ const NoteSchema = new Schema<INote>(
   {
     by: {
       type: String,
-      enum: ["admin", "customer"],
+      enum: ["admin", "customer", "employee"],
       required: true,
+    },
+    senderName: {
+      type: String,
+      trim: true,
+      default: undefined,
     },
     content: {
       type: String,
@@ -145,21 +151,34 @@ let existingProductRequest = mongoose.models.ProductRequest as
   | Model<IProductRequest>
   | undefined;
 
+const cachedNoteAuthorPath = existingProductRequest?.schema.path(
+  "notes.by"
+) as (Schema.Types.String & { enumValues?: string[] }) | undefined;
+const cachedNotesSupportEmployees =
+  cachedNoteAuthorPath?.enumValues?.includes("employee") === true;
+const cachedNotesSupportSenderName = Boolean(
+  existingProductRequest?.schema.path("notes.senderName")
+);
+
 if (
   existingProductRequest &&
-  !existingProductRequest.schema.path("assignedEmployee")
+  (!existingProductRequest.schema.path("assignedEmployee") ||
+    !cachedNotesSupportEmployees ||
+    !cachedNotesSupportSenderName)
 ) {
-  existingProductRequest.schema.add({
-    assignedEmployee: {
-      type: Schema.Types.ObjectId,
-      ref: "Employee",
-      default: undefined,
-    },
-    assignedAt: {
-      type: Date,
-      default: undefined,
-    },
-  });
+  if (!existingProductRequest.schema.path("assignedEmployee")) {
+    existingProductRequest.schema.add({
+      assignedEmployee: {
+        type: Schema.Types.ObjectId,
+        ref: "Employee",
+        default: undefined,
+      },
+      assignedAt: {
+        type: Date,
+        default: undefined,
+      },
+    });
+  }
   mongoose.deleteModel("ProductRequest");
   existingProductRequest = undefined;
 }

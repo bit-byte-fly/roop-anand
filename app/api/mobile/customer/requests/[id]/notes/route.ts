@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import ProductRequest from "@/models/ProductRequest";
+import "@/models/Employee";
 import { verifyCustomerAuth } from "@/lib/verifyCustomerAuth";
 
 interface RouteParams {
@@ -28,7 +29,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Validate content
     if (!content || typeof content !== "string" || !content.trim()) {
       return NextResponse.json(
-        { success: false, message: "Note content is required" },
+        { success: false, message: "Message is required" },
+        { status: 400 }
+      );
+    }
+
+    if (content.trim().length > 500) {
+      return NextResponse.json(
+        { success: false, message: "Message cannot exceed 500 characters" },
         { status: 400 }
       );
     }
@@ -59,13 +67,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { new: true, runValidators: true }
     )
       .populate("products.product", "title photo price")
+      .populate("assignedEmployee", "fullName")
       .lean();
+
+    const assignedEmployee = updatedRequest?.assignedEmployee as unknown as
+      | { fullName?: string }
+      | undefined;
 
     return NextResponse.json({
       success: true,
       message: "Note added successfully",
       note: newNote,
       notes: updatedRequest?.notes || [],
+      employeeName: assignedEmployee?.fullName,
     });
   } catch (error) {
     console.error("Error adding note:", error);
@@ -96,7 +110,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const productRequest = await ProductRequest.findOne({
       _id: id,
       customer: auth.customer.id,
-    }).lean();
+    })
+      .populate("assignedEmployee", "fullName")
+      .lean();
 
     if (!productRequest) {
       return NextResponse.json(
@@ -105,9 +121,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const assignedEmployee = productRequest.assignedEmployee as unknown as
+      | { fullName?: string }
+      | undefined;
+
     return NextResponse.json({
       success: true,
       notes: productRequest.notes || [],
+      employeeName: assignedEmployee?.fullName,
     });
   } catch (error) {
     console.error("Error fetching notes:", error);

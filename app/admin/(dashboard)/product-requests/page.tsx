@@ -68,7 +68,8 @@ interface ProductInRequest {
 }
 
 interface Note {
-  by: "admin" | "customer";
+  by: "admin" | "customer" | "employee";
+  senderName?: string;
   content: string;
   createdAt: string;
 }
@@ -1076,7 +1077,16 @@ export default function ProductRequestsPage() {
                                     : "bg-slate-200 text-slate-700"
                                 }`}
                               >
-                                {note.by === "admin" ? "Admin" : "Customer"}
+                                {note.by === "admin"
+                                  ? "Admin"
+                                  : note.by === "employee"
+                                    ? `Employee • ${
+                                        note.senderName ||
+                                        selectedRequest.assignedEmployee
+                                          ?.fullName ||
+                                        "Unknown"
+                                      }`
+                                    : "Customer"}
                               </span>
                               <span className="text-xs text-slate-400">
                                 {formatDate(note.createdAt)}

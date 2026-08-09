@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import connectDB from "@/lib/mongodb";
+import Employee from "@/models/Employee";
 import ProductRequest from "@/models/ProductRequest";
 
 interface RouteParams {
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const productRequest = await ProductRequest.findById(id)
       .populate("customer", "name email phone authType address createdAt")
+      .populate("assignedEmployee", "fullName phoneNumber email profilePhoto status")
       .populate("products.product", "title photo description price stockQuantity")
       .lean();
 
@@ -67,6 +70,40 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       hasChanges = true;
     }
 
+    // Assign or unassign this customer request to an employee.
+    if (Object.prototype.hasOwnProperty.call(body, "assignedEmployeeId")) {
+      if (!body.assignedEmployeeId) {
+        productRequest.set("assignedEmployee", undefined);
+        productRequest.set("assignedAt", undefined);
+      } else {
+        if (!Types.ObjectId.isValid(body.assignedEmployeeId)) {
+          return NextResponse.json(
+            { success: false, message: "Invalid employee ID" },
+            { status: 400 }
+          );
+        }
+
+        const employeeExists = await Employee.exists({
+          _id: body.assignedEmployeeId,
+        });
+        if (!employeeExists) {
+          return NextResponse.json(
+            { success: false, message: "Employee not found" },
+            { status: 404 }
+          );
+        }
+
+        productRequest.set(
+          "assignedEmployee",
+          new Types.ObjectId(body.assignedEmployeeId)
+        );
+        productRequest.set("assignedAt", new Date());
+      }
+      productRequest.markModified("assignedEmployee");
+      productRequest.markModified("assignedAt");
+      hasChanges = true;
+    }
+
     // Handle adding a new note
     if (body.note && typeof body.note === "string" && body.note.trim()) {
       // Migrate notes to array if it's still a string (old schema)
@@ -95,6 +132,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Fetch with populated data for response
     const updatedRequest = await ProductRequest.findById(id)
       .populate("customer", "name email phone authType")
+      .populate("assignedEmployee", "fullName phoneNumber email profilePhoto status")
       .populate("products.product", "title photo price");
 
     return NextResponse.json({
@@ -207,6 +245,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Fetch with populated data for response
     const updatedRequest = await ProductRequest.findById(id)
       .populate("customer", "name email phone authType")
+      .populate("assignedEmployee", "fullName phoneNumber email profilePhoto status")
       .populate("products.product", "title photo price");
 
     return NextResponse.json({

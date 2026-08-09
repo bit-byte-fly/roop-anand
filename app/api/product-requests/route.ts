@@ -4,6 +4,7 @@ import connectDB from "@/lib/mongodb";
 import ProductRequest from "@/models/ProductRequest";
 // Import models to register schemas for populate
 import "@/models/Customer";
+import "@/models/Employee";
 import "@/models/Product";
 
 /**
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
     // Fetch requests with populated data
     const requests = await ProductRequest.find(query)
       .populate("customer", "name email phone authType")
+      .populate("assignedEmployee", "fullName phoneNumber email profilePhoto status")
       .populate("products.product", "title photo price")
       .sort(sort)
       .skip(skip)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -21,7 +21,11 @@ import {
   Send,
   Edit2,
   Trash2,
+  UserCheck,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,6 +53,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -68,6 +73,14 @@ interface Note {
   createdAt: string;
 }
 
+interface EmployeeOption {
+  _id: string;
+  fullName: string;
+  phoneNumber: string;
+  status: "Online" | "Offline";
+  profilePhoto?: string;
+}
+
 interface ProductRequest {
   _id: string;
   customer: {
@@ -78,6 +91,8 @@ interface ProductRequest {
     authType: "guest" | "registered";
   };
   products: ProductInRequest[];
+  assignedEmployee?: EmployeeOption | null;
+  assignedAt?: string;
   status: "pending" | "ongoing" | "delivered";
   customerDetails: {
     name: string;
@@ -101,6 +116,109 @@ type SortField = "createdAt" | "status";
 type SortOrder = "asc" | "desc";
 type StatusFilter = "all" | "pending" | "ongoing" | "delivered";
 
+interface EmployeeAssignmentSelectProps {
+  employees: EmployeeOption[];
+  value?: string;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+  onChange: (employeeId: string) => void;
+}
+
+function EmployeeAssignmentSelect({
+  employees,
+  value,
+  disabled,
+  loading,
+  className = "w-48",
+  onChange,
+}: EmployeeAssignmentSelectProps) {
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const selectedEmployee = employees.find((employee) => employee._id === value);
+  const normalizedSearch = employeeSearch.trim().toLowerCase();
+  const filteredEmployees = employees.filter(
+    (employee) =>
+      employee.fullName.toLowerCase().includes(normalizedSearch) ||
+      employee.phoneNumber.includes(normalizedSearch)
+  );
+
+  return (
+    <DropdownMenu onOpenChange={(open) => !open && setEmployeeSearch("")}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className={`${className} justify-between bg-white font-normal`}
+        >
+          {loading ? (
+            <span className="flex items-center gap-2 text-slate-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Assigning...
+            </span>
+          ) : (
+            <span className="truncate">
+              {selectedEmployee?.fullName || "Unassigned"}
+            </span>
+          )}
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-72">
+        <div
+          className="relative p-2"
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <Search className="absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={employeeSearch}
+            onChange={(event) => setEmployeeSearch(event.target.value)}
+            placeholder="Search name or phone..."
+            className="h-9 pl-9"
+            autoFocus
+          />
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => onChange("unassigned")}
+          className="gap-2"
+        >
+          <span className="flex-1">Unassigned</span>
+          {!value && <Check className="h-4 w-4 text-indigo-600" />}
+        </DropdownMenuItem>
+        {filteredEmployees.length === 0 ? (
+          <p className="px-3 py-4 text-center text-sm text-slate-500">
+            No employees found
+          </p>
+        ) : (
+          filteredEmployees.map((employee) => (
+            <DropdownMenuItem
+              key={employee._id}
+              onSelect={() => onChange(employee._id)}
+              className="gap-2"
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  employee.status === "Online" ? "bg-green-500" : "bg-slate-300"
+                }`}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{employee.fullName}</span>
+                <span className="block text-xs text-slate-500">
+                  {employee.phoneNumber}
+                </span>
+              </span>
+              {employee._id === value && (
+                <Check className="h-4 w-4 text-indigo-600" />
+              )}
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 const statusConfig = {
   pending: {
     label: "Pending",
@@ -121,6 +239,10 @@ const statusConfig = {
 
 export default function ProductRequestsPage() {
   const [requests, setRequests] = useState<ProductRequest[]>([]);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [assigningRequestId, setAssigningRequestId] = useState<string | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<ProductRequest | null>(
@@ -174,13 +296,30 @@ export default function ProductRequestsPage() {
     fetchRequests();
   }, [fetchRequests]);
 
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const response = await fetch("/api/employees");
+        if (!response.ok) return;
+        const data = (await response.json()) as EmployeeOption[];
+        setEmployees(data);
+      } catch (error) {
+        console.error("Error fetching employees:", error);
+      }
+    };
+
+    fetchEmployees();
+  }, []);
+
+  const selectedRequestId = selectedRequest?._id;
+
   // Polling for notes when dialog is open
   useEffect(() => {
-    if (!isDetailsOpen || !selectedRequest) return;
+    if (!isDetailsOpen || !selectedRequestId) return;
 
     const pollNotes = async () => {
       try {
-        const res = await fetch(`/api/product-requests/${selectedRequest._id}`);
+        const res = await fetch(`/api/product-requests/${selectedRequestId}`);
         if (res.ok) {
           const data = await res.json();
           setSelectedRequest(data.request);
@@ -192,7 +331,7 @@ export default function ProductRequestsPage() {
 
     const intervalId = setInterval(pollNotes, 1000);
     return () => clearInterval(intervalId);
-  }, [isDetailsOpen, selectedRequest?._id]);
+  }, [isDetailsOpen, selectedRequestId]);
 
   const handleViewDetails = async (request: ProductRequest) => {
     try {
@@ -225,6 +364,48 @@ export default function ProductRequestsPage() {
       }
     } catch (error) {
       console.error("Error updating status:", error);
+    }
+  };
+
+  const handleAssignmentUpdate = async (
+    requestId: string,
+    employeeId: string
+  ) => {
+    setAssigningRequestId(requestId);
+    try {
+      const response = await fetch(`/api/product-requests/${requestId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedEmployeeId:
+            employeeId === "unassigned" ? null : employeeId,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.message || "Failed to assign employee");
+        return;
+      }
+
+      setRequests((current) =>
+        current.map((item) =>
+          item._id === requestId ? data.request : item
+        )
+      );
+      if (selectedRequest?._id === requestId) {
+        setSelectedRequest(data.request);
+      }
+      toast.success(
+        employeeId === "unassigned"
+          ? "Employee unassigned"
+          : "Request assigned to employee"
+      );
+    } catch (error) {
+      console.error("Error assigning employee:", error);
+      toast.error("Failed to assign employee");
+    } finally {
+      setAssigningRequestId(null);
     }
   };
 
@@ -570,12 +751,13 @@ export default function ProductRequestsPage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
                       <TableHead className="font-semibold">Customer</TableHead>
                       <TableHead className="font-semibold">Products</TableHead>
+                      <TableHead className="font-semibold">Assigned To</TableHead>
                       <TableHead className="font-semibold">Status</TableHead>
                       <TableHead className="font-semibold">Date</TableHead>
                       <TableHead className="text-right font-semibold">
@@ -613,6 +795,17 @@ export default function ProductRequestsPage() {
                               {request.products.length} product(s)
                             </span>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <EmployeeAssignmentSelect
+                            employees={employees}
+                            value={request.assignedEmployee?._id}
+                            onChange={(employeeId) =>
+                              handleAssignmentUpdate(request._id, employeeId)
+                            }
+                            disabled={assigningRequestId === request._id}
+                            loading={assigningRequestId === request._id}
+                          />
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -732,6 +925,31 @@ export default function ProductRequestsPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                </div>
+
+                {/* Employee Assignment */}
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-indigo-600" />
+                    <h3 className="font-semibold text-slate-800">
+                      Assigned Employee
+                    </h3>
+                  </div>
+                  <EmployeeAssignmentSelect
+                    employees={employees}
+                    value={selectedRequest.assignedEmployee?._id}
+                    onChange={(employeeId) =>
+                      handleAssignmentUpdate(selectedRequest._id, employeeId)
+                    }
+                    disabled={assigningRequestId === selectedRequest._id}
+                    loading={assigningRequestId === selectedRequest._id}
+                    className="w-full"
+                  />
+                  {selectedRequest.assignedAt && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Assigned {formatDate(selectedRequest.assignedAt)}
+                    </p>
+                  )}
                 </div>
 
                 {/* Customer Details */}

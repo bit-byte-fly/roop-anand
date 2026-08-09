@@ -21,6 +21,8 @@ export interface INote {
 export interface IProductRequest extends Document {
   customer: Types.ObjectId;
   products: IRequestProduct[];
+  assignedEmployee?: Types.ObjectId;
+  assignedAt?: Date;
   status: "pending" | "ongoing" | "delivered";
   customerDetails: ICustomerDetails;
   notes: INote[];
@@ -101,6 +103,15 @@ const ProductRequestSchema = new Schema<IProductRequest>(
         message: "At least one product is required",
       },
     },
+    assignedEmployee: {
+      type: Schema.Types.ObjectId,
+      ref: "Employee",
+      default: undefined,
+    },
+    assignedAt: {
+      type: Date,
+      default: undefined,
+    },
     status: {
       type: String,
       enum: ["pending", "ongoing", "delivered"],
@@ -122,13 +133,39 @@ const ProductRequestSchema = new Schema<IProductRequest>(
 
 // Indexes for faster queries
 ProductRequestSchema.index({ customer: 1 });
+ProductRequestSchema.index({ assignedEmployee: 1, createdAt: -1 });
 ProductRequestSchema.index({ status: 1 });
 ProductRequestSchema.index({ createdAt: -1 });
 ProductRequestSchema.index({ "customerDetails.name": "text" });
 
-// Prevent model recompilation in development
+// Next.js keeps compiled Mongoose models during hot reload. If the cached model
+// predates employee assignment, patch old references and recompile this model
+// so document setters/change tracking are also generated for the new fields.
+let existingProductRequest = mongoose.models.ProductRequest as
+  | Model<IProductRequest>
+  | undefined;
+
+if (
+  existingProductRequest &&
+  !existingProductRequest.schema.path("assignedEmployee")
+) {
+  existingProductRequest.schema.add({
+    assignedEmployee: {
+      type: Schema.Types.ObjectId,
+      ref: "Employee",
+      default: undefined,
+    },
+    assignedAt: {
+      type: Date,
+      default: undefined,
+    },
+  });
+  mongoose.deleteModel("ProductRequest");
+  existingProductRequest = undefined;
+}
+
 const ProductRequest: Model<IProductRequest> =
-  mongoose.models.ProductRequest ||
+  existingProductRequest ||
   mongoose.model<IProductRequest>("ProductRequest", ProductRequestSchema);
 
 export default ProductRequest;

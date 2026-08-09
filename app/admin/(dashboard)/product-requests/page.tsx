@@ -78,6 +78,10 @@ interface EmployeeOption {
   _id: string;
   fullName: string;
   phoneNumber: string;
+  address?: {
+    city: string;
+    pincode: string;
+  };
   status: "Online" | "Offline";
   profilePhoto?: string;
 }
@@ -131,7 +135,7 @@ function EmployeeAssignmentSelect({
   value,
   disabled,
   loading,
-  className = "w-48",
+  className = "w-56",
   onChange,
 }: EmployeeAssignmentSelectProps) {
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -140,8 +144,13 @@ function EmployeeAssignmentSelect({
   const filteredEmployees = employees.filter(
     (employee) =>
       employee.fullName.toLowerCase().includes(normalizedSearch) ||
-      employee.phoneNumber.includes(normalizedSearch)
+      employee.phoneNumber.includes(normalizedSearch) ||
+      employee.address?.city.toLowerCase().includes(normalizedSearch) ||
+      employee.address?.pincode.includes(normalizedSearch)
   );
+  const selectedLocation = selectedEmployee?.address
+    ? `${selectedEmployee.address.city} ${selectedEmployee.address.pincode}`
+    : "";
 
   return (
     <DropdownMenu onOpenChange={(open) => !open && setEmployeeSearch("")}>
@@ -158,8 +167,12 @@ function EmployeeAssignmentSelect({
               Assigning...
             </span>
           ) : (
-            <span className="truncate">
-              {selectedEmployee?.fullName || "Unassigned"}
+            <span className="min-w-0 truncate">
+              {selectedEmployee
+                ? `${selectedEmployee.fullName}${
+                    selectedLocation ? ` • ${selectedLocation}` : ""
+                  }`
+                : "Unassigned"}
             </span>
           )}
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-slate-400" />
@@ -174,7 +187,7 @@ function EmployeeAssignmentSelect({
           <Input
             value={employeeSearch}
             onChange={(event) => setEmployeeSearch(event.target.value)}
-            placeholder="Search name or phone..."
+            placeholder="Search name, phone, city or pincode..."
             className="h-9 pl-9"
             autoFocus
           />
@@ -207,6 +220,11 @@ function EmployeeAssignmentSelect({
                 <span className="block truncate">{employee.fullName}</span>
                 <span className="block text-xs text-slate-500">
                   {employee.phoneNumber}
+                </span>
+                <span className="block text-xs font-medium text-indigo-600">
+                  {employee.address
+                    ? `${employee.address.city} • ${employee.address.pincode}`
+                    : "City and pincode not added"}
                 </span>
               </span>
               {employee._id === value && (

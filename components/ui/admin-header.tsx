@@ -1,15 +1,15 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import {
-  Building2,
   ChevronDown,
+  ChevronRight,
   FileText,
+  Home,
   LayoutDashboard,
-  Loader2,
   LogOut,
   Package,
   Settings,
@@ -29,47 +29,43 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
 
-interface OrganizationProfile {
-  companyName: string;
-  logo?: string;
-  phone?: string;
-  email?: string;
-}
+const routeLabels: Record<string, string> = {
+  employees: "Employees",
+  customers: "Customers",
+  products: "Products",
+  "gst-master": "GST Master",
+  "product-requests": "Product Requests",
+  sales: "Sales",
+  requests: "Requests",
+  invoices: "Direct Invoices",
+  admins: "Admins",
+};
 
-const fallbackProfile: OrganizationProfile = {
-  companyName: "Roop Anand",
-  logo: "/roop-anand-logo.png",
+const formatSegment = (segment: string) => {
+  if (/^[a-f0-9]{24}$/i.test(segment)) return "Details";
+  return (
+    routeLabels[segment] ||
+    segment
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
 };
 
 export function AdminHeader() {
   const { data: session } = useSession();
   const { can, canAccess } = usePermissions();
-  const [profile, setProfile] = useState<OrganizationProfile>(fallbackProfile);
-  const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      const response = await fetch("/api/organization-settings");
-      if (!response.ok) return;
-
-      const data = (await response.json()) as OrganizationProfile;
-      setProfile({
-        ...fallbackProfile,
-        ...data,
-        companyName: data.companyName || fallbackProfile.companyName,
-        logo: data.logo || fallbackProfile.logo,
-      });
-    } catch (error) {
-      console.error("Failed to load organization profile:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  const pathSegments = pathname
+    .split("/")
+    .filter(Boolean)
+    .slice(1);
+  const breadcrumbItems = pathSegments.map((segment, index) => ({
+    label: formatSegment(segment),
+    href: `/admin/${pathSegments.slice(0, index + 1).join("/")}`,
+  }));
 
   const adminName = session?.user?.name || "Admin";
   const adminEmail = session?.user?.email || "";
@@ -83,34 +79,54 @@ export function AdminHeader() {
   return (
     <>
       <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 py-2 backdrop-blur">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />
-            ) : profile.logo ? (
-              <Image
-                src={profile.logo}
-                alt={`${profile.companyName} logo`}
-                width={44}
-                height={44}
-                className="h-full w-full object-contain"
-                unoptimized={profile.logo.startsWith("http")}
-                priority
-              />
-            ) : (
-              <Building2 className="h-5 w-5 text-indigo-600" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-900">
-              {profile.companyName}
-            </p>
-            <p className="hidden truncate text-xs text-slate-500 sm:block">
-              {[profile.phone, profile.email].filter(Boolean).join(" · ") ||
-                "Admin Panel"}
-            </p>
-          </div>
-        </div>
+        <nav
+          aria-label="Breadcrumb"
+          className="flex min-w-0 items-center gap-1.5 text-sm"
+        >
+          {canAccess("dashboard") ? (
+            <Link
+              href="/admin"
+              aria-current={breadcrumbItems.length === 0 ? "page" : undefined}
+              className={`flex shrink-0 items-center gap-1.5 transition-colors hover:text-indigo-600 ${
+                breadcrumbItems.length === 0
+                  ? "font-semibold text-slate-900"
+                  : "font-medium text-slate-500"
+              }`}
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+          ) : (
+            <span className="flex shrink-0 items-center gap-1.5 font-medium text-slate-500">
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </span>
+          )}
+
+          {breadcrumbItems.map((item, index) => {
+            const isLast = index === breadcrumbItems.length - 1;
+            return (
+              <div key={item.href} className="flex min-w-0 items-center gap-1.5">
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+                {isLast ? (
+                  <span
+                    aria-current="page"
+                    className="truncate font-semibold text-slate-900"
+                  >
+                    {item.label}
+                  </span>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className="truncate font-medium text-slate-500 transition-colors hover:text-indigo-600"
+                  >
+                    {item.label}
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </nav>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -200,7 +216,6 @@ export function AdminHeader() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSave={() => {
-          fetchProfile();
           toast.success("Business profile updated for all invoices");
         }}
       />

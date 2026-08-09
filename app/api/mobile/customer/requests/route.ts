@@ -154,7 +154,10 @@ export async function GET(request: NextRequest) {
       customer: new Types.ObjectId(auth.customer.id),
     };
 
-    if (status && ["pending", "ongoing", "delivered"].includes(status)) {
+    if (
+      status &&
+      ["pending", "assigned", "ongoing", "delivered"].includes(status)
+    ) {
       query.status = status;
     }
 

@@ -98,7 +98,7 @@ interface ProductRequest {
   products: ProductInRequest[];
   assignedEmployee?: EmployeeOption | null;
   assignedAt?: string;
-  status: "pending" | "ongoing" | "delivered";
+  status: "pending" | "assigned" | "ongoing" | "delivered";
   customerDetails: {
     name: string;
     phone: string;
@@ -112,6 +112,7 @@ interface ProductRequest {
 
 interface StatusCounts {
   pending: number;
+  assigned: number;
   ongoing: number;
   delivered: number;
   total: number;
@@ -119,7 +120,12 @@ interface StatusCounts {
 
 type SortField = "createdAt" | "status";
 type SortOrder = "asc" | "desc";
-type StatusFilter = "all" | "pending" | "ongoing" | "delivered";
+type StatusFilter =
+  | "all"
+  | "pending"
+  | "assigned"
+  | "ongoing"
+  | "delivered";
 
 interface EmployeeAssignmentSelectProps {
   employees: EmployeeOption[];
@@ -244,6 +250,11 @@ const statusConfig = {
     icon: Clock,
     className: "bg-amber-100 text-amber-700 border-amber-200",
   },
+  assigned: {
+    label: "Assigned",
+    icon: UserCheck,
+    className: "bg-purple-100 text-purple-700 border-purple-200",
+  },
   ongoing: {
     label: "Ongoing",
     icon: Truck,
@@ -270,6 +281,7 @@ export default function ProductRequestsPage() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [statusCounts, setStatusCounts] = useState<StatusCounts>({
     pending: 0,
+    assigned: 0,
     ongoing: 0,
     delivered: 0,
     total: 0,
@@ -301,7 +313,13 @@ export default function ProductRequestsPage() {
         const data = await res.json();
         setRequests(data.requests || []);
         setStatusCounts(
-          data.counts || { pending: 0, ongoing: 0, delivered: 0, total: 0 }
+          data.counts || {
+            pending: 0,
+            assigned: 0,
+            ongoing: 0,
+            delivered: 0,
+            total: 0,
+          }
         );
       }
     } catch (error) {
@@ -585,6 +603,12 @@ export default function ProductRequestsPage() {
                     </span>
                   </span>
                   <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                    <span className="text-slate-600">
+                      {statusCounts.assigned} Assigned
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                     <span className="text-slate-600">
                       {statusCounts.ongoing} Ongoing
@@ -669,6 +693,12 @@ export default function ProductRequestsPage() {
                           <span className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                             Ongoing
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="assigned">
+                          <span className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                            Assigned
                           </span>
                         </SelectItem>
                         <SelectItem value="delivered">
@@ -845,6 +875,15 @@ export default function ProductRequestsPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() =>
+                                  handleStatusUpdate(request._id, "assigned")
+                                }
+                                className="gap-2"
+                              >
+                                <UserCheck className="h-4 w-4 text-purple-500" />
+                                Assigned
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
                                   handleStatusUpdate(request._id, "ongoing")
                                 }
                                 className="gap-2"
@@ -925,6 +964,15 @@ export default function ProductRequestsPage() {
                       >
                         <Clock className="h-4 w-4 text-amber-500" />
                         Pending
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          handleStatusUpdate(selectedRequest._id, "assigned")
+                        }
+                        className="gap-2"
+                      >
+                        <UserCheck className="h-4 w-4 text-purple-500" />
+                        Assigned
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() =>

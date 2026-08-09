@@ -20,6 +20,7 @@ import {
   ShoppingCart,
   Clock,
   CheckCircle,
+  UserCheck,
   Truck,
   Eye,
   Lock,
@@ -76,7 +77,7 @@ interface ProductInRequest {
 interface CustomerRequest {
   _id: string;
   products: ProductInRequest[];
-  status: "pending" | "ongoing" | "delivered";
+  status: "pending" | "assigned" | "ongoing" | "delivered";
   customerDetails: {
     name: string;
     phone: string;
@@ -109,6 +110,11 @@ const statusConfig = {
     label: "Pending",
     icon: Clock,
     className: "bg-amber-100 text-amber-700",
+  },
+  assigned: {
+    label: "Assigned",
+    icon: UserCheck,
+    className: "bg-purple-100 text-purple-700",
   },
   ongoing: {
     label: "Ongoing",
@@ -955,7 +961,11 @@ export default function CustomersPage() {
                   <Select
                     value={selectedRequest.status}
                     onValueChange={async (
-                      value: "pending" | "ongoing" | "delivered"
+                      value:
+                        | "pending"
+                        | "assigned"
+                        | "ongoing"
+                        | "delivered"
                     ) => {
                       setIsUpdatingRequest(true);
                       try {
@@ -1026,6 +1036,12 @@ export default function CustomersPage() {
                         <span className="flex items-center gap-2">
                           <Truck className="h-4 w-4 text-blue-600" />
                           Ongoing
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="assigned">
+                        <span className="flex items-center gap-2">
+                          <UserCheck className="h-4 w-4 text-purple-600" />
+                          Assigned
                         </span>
                       </SelectItem>
                       <SelectItem value="delivered">

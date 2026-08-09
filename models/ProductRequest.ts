@@ -24,7 +24,7 @@ export interface IProductRequest extends Document {
   products: IRequestProduct[];
   assignedEmployee?: Types.ObjectId;
   assignedAt?: Date;
-  status: "pending" | "ongoing" | "delivered";
+  status: "pending" | "assigned" | "ongoing" | "delivered";
   customerDetails: ICustomerDetails;
   notes: INote[];
   createdAt: Date;
@@ -120,7 +120,7 @@ const ProductRequestSchema = new Schema<IProductRequest>(
     },
     status: {
       type: String,
-      enum: ["pending", "ongoing", "delivered"],
+      enum: ["pending", "assigned", "ongoing", "delivered"],
       default: "pending",
     },
     customerDetails: {
@@ -159,12 +159,18 @@ const cachedNotesSupportEmployees =
 const cachedNotesSupportSenderName = Boolean(
   existingProductRequest?.schema.path("notes.senderName")
 );
+const cachedStatusPath = existingProductRequest?.schema.path("status") as
+  | (Schema.Types.String & { enumValues?: string[] })
+  | undefined;
+const cachedStatusSupportsAssigned =
+  cachedStatusPath?.enumValues?.includes("assigned") === true;
 
 if (
   existingProductRequest &&
   (!existingProductRequest.schema.path("assignedEmployee") ||
     !cachedNotesSupportEmployees ||
-    !cachedNotesSupportSenderName)
+    !cachedNotesSupportSenderName ||
+    !cachedStatusSupportsAssigned)
 ) {
   if (!existingProductRequest.schema.path("assignedEmployee")) {
     existingProductRequest.schema.add({

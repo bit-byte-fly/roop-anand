@@ -29,7 +29,10 @@ export async function GET(request: NextRequest) {
     // Build query
     const query: Record<string, unknown> = {};
 
-    if (status && ["pending", "ongoing", "delivered"].includes(status)) {
+    if (
+      status &&
+      ["pending", "assigned", "ongoing", "delivered"].includes(status)
+    ) {
       query.status = status;
     }
 
@@ -65,6 +68,7 @@ export async function GET(request: NextRequest) {
 
     const counts = {
       pending: 0,
+      assigned: 0,
       ongoing: 0,
       delivered: 0,
       total: 0,

@@ -5,7 +5,7 @@ import ProductRequest from "@/models/ProductRequest";
 import "@/models/Customer";
 import "@/models/Product";
 
-const allowedStatuses = ["pending", "ongoing", "delivered"];
+const allowedStatuses = ["pending", "assigned", "ongoing", "delivered"];
 
 export async function GET(request: NextRequest) {
   try {

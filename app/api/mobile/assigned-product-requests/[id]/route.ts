@@ -10,7 +10,12 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-const allowedStatuses = ["pending", "ongoing", "delivered"] as const;
+const allowedStatuses = [
+  "pending",
+  "assigned",
+  "ongoing",
+  "delivered",
+] as const;
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
@@ -40,7 +45,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     await connectDB();
     const updatedRequest = await ProductRequest.findOneAndUpdate(
-      { _id: id, assignedEmployee: auth.user.id },
+      {
+        _id: id,
+        assignedEmployee: auth.user.id,
+        status: { $ne: "delivered" },
+      },
       { $set: { status: body.status } },
       { new: true, runValidators: true }
     )
@@ -52,6 +61,22 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       .lean();
 
     if (!updatedRequest) {
+      const deliveredRequest = await ProductRequest.exists({
+        _id: id,
+        assignedEmployee: auth.user.id,
+        status: "delivered",
+      });
+
+      if (deliveredRequest) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Delivered requests are locked and cannot be changed",
+          },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,

@@ -3,6 +3,8 @@ import { Types } from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import Sale, { ISale } from '@/models/Sale';
 import Employee from '@/models/Employee';
+import ProductRequest from '@/models/ProductRequest';
+import Customer from '@/models/Customer';
 import '@/models/Product';
 import { verifyMobileAuth } from '@/lib/verifyMobileAuth';
 import { calculateSalePricing } from '@/lib/salePricing';
@@ -149,7 +151,7 @@ export async function POST(request: NextRequest) {
     await dbConnect();
 
     const body = await request.json();
-    const { items, customer, paymentMethod } = body;
+    const { items, customer, paymentMethod, productRequestId } = body;
 
     // Validate items
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -229,6 +231,76 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let productRequest: Awaited<ReturnType<typeof ProductRequest.findOne>> | null = null;
+    if (productRequestId) {
+      if (!Types.ObjectId.isValid(productRequestId)) {
+        return NextResponse.json(
+          { success: false, message: 'Invalid product request ID' },
+          { status: 400 }
+        );
+      }
+
+      productRequest = await ProductRequest.findOne({
+        _id: productRequestId,
+        assignedEmployee: user.id,
+      });
+
+      if (!productRequest) {
+        return NextResponse.json(
+          { success: false, message: 'Product request is not assigned to you' },
+          { status: 404 }
+        );
+      }
+
+      if (productRequest.status === 'delivered') {
+        return NextResponse.json(
+          { success: false, message: 'This product request is already delivered' },
+          { status: 409 }
+        );
+      }
+
+      const requestedQuantities = new Map<string, number>();
+      for (const requestedItem of productRequest.products) {
+        const id = requestedItem.product.toString();
+        requestedQuantities.set(
+          id,
+          (requestedQuantities.get(id) || 0) + requestedItem.quantity
+        );
+      }
+
+      const saleQuantities = new Map<string, number>();
+      for (const saleItem of items) {
+        saleQuantities.set(
+          saleItem.productId,
+          (saleQuantities.get(saleItem.productId) || 0) + saleItem.quantity
+        );
+      }
+
+      const matchesRequest =
+        requestedQuantities.size === saleQuantities.size &&
+        Array.from(requestedQuantities.entries()).every(
+          ([productId, quantity]) => saleQuantities.get(productId) === quantity
+        );
+
+      if (!matchesRequest) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Sale products and quantities must match the assigned request',
+          },
+          { status: 400 }
+        );
+      }
+
+      const existingSale = await Sale.exists({ productRequest: productRequestId });
+      if (existingSale) {
+        return NextResponse.json(
+          { success: false, message: 'A sale already exists for this request' },
+          { status: 409 }
+        );
+      }
+    }
+
     // Get employee with products
     const employee = await Employee.findById(user.id);
     if (!employee) {
@@ -296,6 +368,7 @@ export async function POST(request: NextRequest) {
     // Create the sale
     const sale = await Sale.create({
       employee: user.id,
+      productRequest: productRequest?._id,
       items: pricing.saleItems,
       customer: {
         name: customer.name.trim(),
@@ -339,11 +412,55 @@ export async function POST(request: NextRequest) {
 
     await employee.save();
 
+    // Keep customer contact/address details available for future sale lookups.
+    try {
+      const normalizedPhone = customer.phone.replace(/\D/g, '').slice(-10);
+      const phonePattern = new RegExp(
+        `${normalizedPhone.split('').join('\\D*')}$`
+      );
+      const savedCustomer = await Customer.findOne({ phone: phonePattern });
+
+      if (savedCustomer) {
+        savedCustomer.name = customer.name.trim();
+        savedCustomer.phone = normalizedPhone;
+        savedCustomer.address = billingAddress;
+        if (customer.email?.trim() && !savedCustomer.email) {
+          const emailTaken = await Customer.exists({
+            email: customer.email.trim().toLowerCase(),
+            _id: { $ne: savedCustomer._id },
+          });
+          if (!emailTaken) savedCustomer.email = customer.email.trim();
+        }
+        await savedCustomer.save();
+      } else {
+        const email = customer.email?.trim().toLowerCase();
+        const emailTaken = email ? await Customer.exists({ email }) : null;
+        await Customer.create({
+          name: customer.name.trim(),
+          phone: normalizedPhone,
+          email: email && !emailTaken ? email : undefined,
+          address: billingAddress,
+          authType: 'guest',
+        });
+      }
+    } catch (customerSaveError) {
+      // The sale is already valid; a lookup-cache failure must not duplicate it.
+      console.error('Failed to save sale customer details:', customerSaveError);
+    }
+
+    if (productRequest) {
+      await ProductRequest.updateOne(
+        { _id: productRequest._id, assignedEmployee: user.id },
+        { $set: { status: 'delivered' } }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Sale recorded successfully',
       sale: {
         _id: sale._id.toString(),
+        productRequestId: sale.productRequest?.toString(),
         items: pricing.saleItems.map((item) => ({
           productId: item.product,
           productTitle: item.productTitle,
@@ -370,6 +487,17 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Sale creation error:', error);
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 11000
+    ) {
+      return NextResponse.json(
+        { success: false, message: 'A sale already exists for this request' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

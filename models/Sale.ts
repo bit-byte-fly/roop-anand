@@ -23,6 +23,7 @@ export interface ICustomer {
 
 export interface ISale extends Document {
   employee: Types.ObjectId;
+  productRequest?: Types.ObjectId;
   items: ISaleItem[];
   customer: ICustomer;
   paymentMethod: "Cash" | "Online";
@@ -123,6 +124,13 @@ const SaleSchema = new Schema<ISale>(
       ref: "Employee",
       required: [true, "Employee is required"],
     },
+    productRequest: {
+      type: Schema.Types.ObjectId,
+      ref: "ProductRequest",
+      unique: true,
+      sparse: true,
+      default: undefined,
+    },
     items: {
       type: [SaleItemSchema],
       required: true,
@@ -161,6 +169,11 @@ const SaleSchema = new Schema<ISale>(
     timestamps: true,
   }
 );
+
+// Refresh a cached development model created before request-linked sales.
+if (mongoose.models.Sale && !mongoose.models.Sale.schema.path("productRequest")) {
+  mongoose.deleteModel("Sale");
+}
 
 // Prevent model recompilation in development
 const Sale: Model<ISale> =

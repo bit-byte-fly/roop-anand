@@ -65,7 +65,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     let hasChanges = false;
 
     // Handle status update
-    if (body.status && ["pending", "ongoing", "delivered"].includes(body.status)) {
+    if (
+      body.status &&
+      ["pending", "assigned", "ongoing", "delivered"].includes(body.status)
+    ) {
       productRequest.status = body.status;
       hasChanges = true;
     }
@@ -75,6 +78,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (!body.assignedEmployeeId) {
         productRequest.set("assignedEmployee", undefined);
         productRequest.set("assignedAt", undefined);
+        if (productRequest.status === "assigned") {
+          productRequest.status = "pending";
+        }
       } else {
         if (!Types.ObjectId.isValid(body.assignedEmployeeId)) {
           return NextResponse.json(
@@ -98,6 +104,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
           new Types.ObjectId(body.assignedEmployeeId)
         );
         productRequest.set("assignedAt", new Date());
+        if (productRequest.status === "pending") {
+          productRequest.status = "assigned";
+        }
       }
       productRequest.markModified("assignedEmployee");
       productRequest.markModified("assignedAt");

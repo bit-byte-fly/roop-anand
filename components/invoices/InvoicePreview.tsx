@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, X, Loader2 } from "lucide-react";
+
+const DEFAULT_LOGO = "/roop-anand-logo.png";
 
 interface OrganizationSettings {
   companyName: string;
@@ -106,9 +108,11 @@ export function InvoicePreview({
   const handlePrint = () => {
     if (!invoice) return;
 
-    const logoHtml = orgSettings?.logo
-      ? `<img src="${orgSettings.logo}" alt="Logo" style="max-width: 100px; max-height: 100px; object-fit: contain;" />`
-      : "";
+    const invoiceLogo = new URL(
+      orgSettings?.logo || DEFAULT_LOGO,
+      window.location.origin
+    ).href;
+    const logoHtml = `<img src="${invoiceLogo}" alt="Logo" style="max-width: 100px; max-height: 100px; object-fit: contain;" />`;
 
     const fromAddress = orgSettings?.address
       ? `
@@ -446,13 +450,11 @@ export function InvoicePreview({
                   </div>
                 </div>
               </div>
-              {orgSettings?.logo && (
-                <img
-                  src={orgSettings.logo}
-                  alt="Company Logo"
-                  className="max-w-[100px] max-h-[100px] object-contain"
-                />
-              )}
+              <img
+                src={orgSettings?.logo || DEFAULT_LOGO}
+                alt="Company Logo"
+                className="max-w-[100px] max-h-[100px] object-contain"
+              />
             </div>
 
             {/* Addresses */}

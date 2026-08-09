@@ -1,15 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import {
   Eye,
   Trash2,
   ShoppingBag,
-  User,
   CreditCard,
   Banknote,
+  Download,
   ImageOff,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { PermissionGate } from "@/components/ui/permission-gate";
+import { downloadSaleInvoice } from "@/components/sales/SaleDetails";
 
 interface SaleItem {
   product: {
@@ -69,6 +72,21 @@ interface SalesTableProps {
 }
 
 export function SalesTable({ sales, onView, onDelete }: SalesTableProps) {
+  const [downloadingSaleId, setDownloadingSaleId] = useState<string | null>(
+    null
+  );
+
+  const handleDownloadInvoice = async (sale: Sale) => {
+    if (downloadingSaleId) return;
+
+    setDownloadingSaleId(sale._id);
+    try {
+      await downloadSaleInvoice(sale);
+    } finally {
+      setDownloadingSaleId(null);
+    }
+  };
+
   if (sales.length === 0) {
     return (
       <Card className="p-12 text-center">
@@ -223,6 +241,26 @@ export function SalesTable({ sales, onView, onDelete }: SalesTableProps) {
                       className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
                     >
                       <Eye className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDownloadInvoice(sale)}
+                      disabled={downloadingSaleId !== null}
+                      title="Download invoice"
+                      aria-label={`Download invoice for ${sale.customer.name}`}
+                      className="h-8 w-8 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                    >
+                      {downloadingSaleId === sale._id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
                     </Button>
                   </motion.div>
                   <PermissionGate module="sales" action="delete">

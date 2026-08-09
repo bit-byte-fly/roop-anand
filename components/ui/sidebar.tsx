@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -117,9 +118,14 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="flex items-center justify-between p-4 border-b border-neutral-200">
         {!collapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">RA</span>
-            </div>
+            <Image
+              src="/roop-anand-logo.png"
+              alt="Roop Anand logo"
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-lg object-contain"
+              priority
+            />
             <span className="font-semibold text-slate-800">Roop Anand</span>
           </div>
         )}

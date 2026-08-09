@@ -40,6 +40,13 @@ interface Employee {
   age: number;
   dateOfJoining: string;
   profilePhoto?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+  };
   status: "Online" | "Offline";
   products?: { _id: string; product: string; quantity: number }[];
   createdAt: string;

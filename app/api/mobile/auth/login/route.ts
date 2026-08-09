@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         phoneNumber: employee.phoneNumber,
         email: employee.email,
         profilePhoto: employee.profilePhoto,
+        address: employee.address,
         status: 'Online',
       },
     });

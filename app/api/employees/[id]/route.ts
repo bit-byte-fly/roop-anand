@@ -71,7 +71,38 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       password,
       profilePhoto,
       status,
+      address,
     } = body;
+
+    let normalizedAddress: Record<string, string> | undefined;
+    if (address !== undefined) {
+      normalizedAddress = {
+        street: address?.street?.trim(),
+        city: address?.city?.trim(),
+        state: address?.state?.trim(),
+        pincode: address?.pincode?.trim(),
+        country: address?.country?.trim() || "India",
+      };
+
+      if (
+        !normalizedAddress.street ||
+        !normalizedAddress.city ||
+        !normalizedAddress.state ||
+        !normalizedAddress.pincode
+      ) {
+        return NextResponse.json(
+          { error: "Address, city, state, and pincode are required" },
+          { status: 400 }
+        );
+      }
+
+      if (!/^[1-9][0-9]{5}$/.test(normalizedAddress.pincode)) {
+        return NextResponse.json(
+          { error: "Please enter a valid 6-digit pincode" },
+          { status: 400 }
+        );
+      }
+    }
 
     // Check if phone number is being changed and if it already exists
     if (phoneNumber) {
@@ -105,6 +136,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       dateOfJoining: dateOfJoining ? new Date(dateOfJoining) : undefined,
       profilePhoto: profilePhoto || undefined,
       status,
+      address: normalizedAddress,
     };
 
     // If profilePhoto is explicitly set to empty/null, remove it

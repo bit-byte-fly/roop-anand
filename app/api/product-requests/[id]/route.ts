@@ -158,7 +158,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     await connectDB();
     const { id } = await params;
 
-    const productRequest = await ProductRequest.findByIdAndDelete(id);
+    const productRequest = await ProductRequest.findById(id);
 
     if (!productRequest) {
       return NextResponse.json(
@@ -166,6 +166,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    if (productRequest.status === "delivered") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Delivered product requests cannot be deleted",
+        },
+        { status: 409 }
+      );
+    }
+
+    await productRequest.deleteOne();
 
     return NextResponse.json({
       success: true,

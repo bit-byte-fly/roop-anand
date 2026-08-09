@@ -29,6 +29,7 @@ import {
   ImageOff,
   ShoppingBag,
   Plus,
+  MapPin,
 } from "lucide-react";
 import { EmployeeForm } from "@/components/employees/EmployeeForm";
 import { ProductAssignment } from "@/components/employees/ProductAssignment";
@@ -60,6 +61,13 @@ interface Employee {
   age: number;
   dateOfJoining: string;
   profilePhoto?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+  };
   status: "Online" | "Offline";
   products: EmployeeProduct[];
   holdings: {
@@ -294,6 +302,20 @@ export default function EmployeeDetailsPage({
                       <Calendar className="h-4 w-4 text-slate-400" />
                       Joined {formatDate(employee.dateOfJoining, "MMM d, yyyy")}
                     </span>
+                    {employee.address && (
+                      <span className="flex items-start gap-1.5 sm:basis-full">
+                        <MapPin className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                        {[
+                          employee.address.street,
+                          employee.address.city,
+                          employee.address.state,
+                          employee.address.pincode,
+                          employee.address.country,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

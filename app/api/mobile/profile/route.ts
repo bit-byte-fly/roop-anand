@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
         age: employee.age,
         dateOfJoining: employee.dateOfJoining,
         profilePhoto: employee.profilePhoto,
+        address: employee.address,
         status: employee.status,
         holdings: employee.holdings,
         products: employee.products,

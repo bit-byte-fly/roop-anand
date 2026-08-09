@@ -859,14 +859,16 @@ export default function ProductRequestsPage() {
                             >
                               View
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleDelete(request._id)}
-                            >
-                              Delete
-                            </Button>
+                            {request.status !== "delivered" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => handleDelete(request._id)}
+                              >
+                                Delete
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1184,15 +1186,17 @@ export default function ProductRequestsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="pt-4 flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => handleDelete(selectedRequest._id)}
-                  >
-                    Delete Request
-                  </Button>
-                </div>
+                {selectedRequest.status !== "delivered" && (
+                  <div className="pt-4 flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleDelete(selectedRequest._id)}
+                    >
+                      Delete Request
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>

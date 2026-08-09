@@ -13,6 +13,14 @@ export interface IHoldings {
   total: number;
 }
 
+export interface IEmployeeAddress {
+  street: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+}
+
 export interface IEmployee extends Document {
   fullName: string;
   phoneNumber: string;
@@ -22,6 +30,7 @@ export interface IEmployee extends Document {
   dateOfJoining: Date;
   password: string;
   profilePhoto?: string;
+  address?: IEmployeeAddress;
   status: "Online" | "Offline";
   products: IEmployeeProduct[];
   holdings: IHoldings;
@@ -49,6 +58,22 @@ const EmployeeProductSchema = new Schema<IEmployeeProduct>(
     },
   },
   { _id: true }
+);
+
+const EmployeeAddressSchema = new Schema<IEmployeeAddress>(
+  {
+    street: { type: String, required: true, trim: true },
+    city: { type: String, required: true, trim: true },
+    state: { type: String, required: true, trim: true },
+    pincode: {
+      type: String,
+      required: true,
+      trim: true,
+      match: [/^[1-9][0-9]{5}$/, "Please enter a valid 6-digit pincode"],
+    },
+    country: { type: String, required: true, trim: true, default: "India" },
+  },
+  { _id: false }
 );
 
 const EmployeeSchema = new Schema<IEmployee>(
@@ -94,6 +119,10 @@ const EmployeeSchema = new Schema<IEmployee>(
       type: String,
       default: undefined,
     },
+    address: {
+      type: EmployeeAddressSchema,
+      default: undefined,
+    },
     status: {
       type: String,
       enum: ["Online", "Offline"],
@@ -133,6 +162,14 @@ const EmployeeSchema = new Schema<IEmployee>(
     timestamps: true,
   }
 );
+
+// Refresh a cached development model created before address support was added.
+if (
+  mongoose.models.Employee &&
+  !mongoose.models.Employee.schema.path("address")
+) {
+  mongoose.deleteModel("Employee");
+}
 
 // Prevent model recompilation in development
 const Employee: Model<IEmployee> =

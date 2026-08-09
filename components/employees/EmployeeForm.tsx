@@ -22,6 +22,7 @@ import {
   EyeOff,
   CheckCircle,
   ImagePlus,
+  MapPin,
 } from "lucide-react";
 
 interface Employee {
@@ -33,6 +34,13 @@ interface Employee {
   age: number;
   dateOfJoining: string;
   profilePhoto?: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+    country: string;
+  };
   status: "Online" | "Offline";
 }
 
@@ -55,6 +63,11 @@ export function EmployeeForm({
     fullName: "",
     phoneNumber: "",
     email: "",
+    street: "",
+    city: "",
+    state: "",
+    pincode: "",
+    country: "India",
     gender: "" as "" | "Male" | "Female" | "Other",
     age: "",
     dateOfJoining: "",
@@ -83,12 +96,20 @@ export function EmployeeForm({
     },
   });
 
+  /* Employee changes when the create/edit dialog is reused, so the local form
+     must be synchronized with the newly selected record. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (employee) {
       setFormData({
         fullName: employee.fullName || "",
         phoneNumber: employee.phoneNumber || "",
         email: employee.email || "",
+        street: employee.address?.street || "",
+        city: employee.address?.city || "",
+        state: employee.address?.state || "",
+        pincode: employee.address?.pincode || "",
+        country: employee.address?.country || "India",
         gender: employee.gender || "",
         age: employee.age?.toString() || "",
         dateOfJoining: employee.dateOfJoining
@@ -108,6 +129,11 @@ export function EmployeeForm({
         fullName: "",
         phoneNumber: "",
         email: "",
+        street: "",
+        city: "",
+        state: "",
+        pincode: "",
+        country: "India",
         gender: "",
         age: "",
         dateOfJoining: "",
@@ -121,6 +147,7 @@ export function EmployeeForm({
       setIsRemoving(false);
     }
   }, [employee]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -217,6 +244,13 @@ export function EmployeeForm({
       fullName: formData.fullName,
       phoneNumber: formData.phoneNumber,
       email: formData.email || undefined,
+      address: {
+        street: formData.street.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        pincode: formData.pincode.trim(),
+        country: formData.country.trim() || "India",
+      },
       gender: formData.gender,
       age: parseInt(formData.age, 10),
       dateOfJoining: formData.dateOfJoining,
@@ -393,6 +427,76 @@ export function EmployeeForm({
           required
           className="transition-all focus:ring-2 focus:ring-indigo-200"
         />
+      </motion.div>
+
+      {/* Employee Address */}
+      <motion.div
+        variants={itemVariants}
+        className="space-y-4 p-4 rounded-lg bg-indigo-50/40 border border-indigo-100"
+      >
+        <div className="flex items-center gap-2 text-slate-800">
+          <MapPin className="h-4 w-4 text-indigo-600" />
+          <Label className="text-base font-medium">Employee Address</Label>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="street">Address *</Label>
+          <Input
+            id="street"
+            value={formData.street}
+            onChange={(e) => handleChange("street", e.target.value)}
+            placeholder="House/building, street, area"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="city">City *</Label>
+            <Input
+              id="city"
+              value={formData.city}
+              onChange={(e) => handleChange("city", e.target.value)}
+              placeholder="Enter city"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="state">State *</Label>
+            <Input
+              id="state"
+              value={formData.state}
+              onChange={(e) => handleChange("state", e.target.value)}
+              placeholder="Enter state"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pincode">Pincode *</Label>
+            <Input
+              id="pincode"
+              inputMode="numeric"
+              pattern="[1-9][0-9]{5}"
+              maxLength={6}
+              value={formData.pincode}
+              onChange={(e) =>
+                handleChange("pincode", e.target.value.replace(/\D/g, ""))
+              }
+              placeholder="6-digit pincode"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="country">Country *</Label>
+            <Input
+              id="country"
+              value={formData.country}
+              onChange={(e) => handleChange("country", e.target.value)}
+              placeholder="Enter country"
+              required
+            />
+          </div>
+        </div>
       </motion.div>
 
       {/* Gender & Age Row */}

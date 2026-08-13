@@ -41,14 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -800,27 +793,18 @@ export default function ProductRequestsPage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50">
-                      <TableHead className="font-semibold">Customer</TableHead>
-                      <TableHead className="font-semibold">Products</TableHead>
-                      <TableHead className="font-semibold">Assigned To</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold">Date</TableHead>
-                      <TableHead className="text-right font-semibold">
-                        Actions
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {requests.map((request) => (
-                      <TableRow
-                        key={request._id}
-                        className="hover:bg-slate-50 transition-colors"
-                      >
-                        <TableCell>
+              <DataTable
+                title="Product requests"
+                data={requests}
+                getRowId={(request) => request._id}
+                columns={[
+                  {
+                    id: "customer",
+                    accessorFn: (request) => request.customerDetails.name,
+                    header: "Customer",
+                    cell: ({ row }) => {
+                      const request = row.original;
+                      return (
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
                               {request.customerDetails.name
@@ -836,16 +820,29 @@ export default function ProductRequestsPage() {
                               </p>
                             </div>
                           </div>
-                        </TableCell>
-                        <TableCell>
+                      );
+                    },
+                  },
+                  {
+                    id: "products",
+                    accessorFn: (request) => request.products.length,
+                    header: "Products",
+                    cell: ({ row }) => (
                           <div className="flex items-center gap-2">
                             <Package className="h-4 w-4 text-slate-400" />
                             <span className="text-sm text-slate-600">
-                              {request.products.length} product(s)
+                              {row.original.products.length} product(s)
                             </span>
                           </div>
-                        </TableCell>
-                        <TableCell>
+                    ),
+                  },
+                  {
+                    id: "assignedEmployee",
+                    accessorFn: (request) => request.assignedEmployee?.fullName ?? "",
+                    header: "Assigned To",
+                    cell: ({ row }) => {
+                      const request = row.original;
+                      return (
                           <EmployeeAssignmentSelect
                             employees={employees}
                             value={request.assignedEmployee?._id}
@@ -855,8 +852,16 @@ export default function ProductRequestsPage() {
                             disabled={assigningRequestId === request._id}
                             loading={assigningRequestId === request._id}
                           />
-                        </TableCell>
-                        <TableCell>
+                      );
+                    },
+                  },
+                  {
+                    id: "status",
+                    accessorFn: (request) => request.status,
+                    header: "Status",
+                    cell: ({ row }) => {
+                      const request = row.original;
+                      return (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="cursor-pointer hover:opacity-80 transition-opacity">
@@ -902,13 +907,27 @@ export default function ProductRequestsPage() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </TableCell>
-                        <TableCell>
+                      );
+                    },
+                  },
+                  {
+                    id: "createdAt",
+                    accessorFn: (request) => new Date(request.createdAt).getTime(),
+                    header: "Date",
+                    cell: ({ row }) => (
                           <p className="text-sm text-slate-600">
-                            {formatDate(request.createdAt)}
+                            {formatDate(row.original.createdAt)}
                           </p>
-                        </TableCell>
-                        <TableCell className="text-right">
+                    ),
+                  },
+                  {
+                    id: "actions",
+                    header: "Actions",
+                    enableSorting: false,
+                    meta: { className: "text-right" },
+                    cell: ({ row }) => {
+                      const request = row.original;
+                      return (
                           <div className="flex items-center justify-end gap-2">
                             <Button
                               variant="outline"
@@ -928,12 +947,11 @@ export default function ProductRequestsPage() {
                               </Button>
                             )}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                      );
+                    },
+                  },
+                ] satisfies DataTableColumnDef<ProductRequest>[]}
+              />
             </motion.div>
           )}
         </AnimatePresence>

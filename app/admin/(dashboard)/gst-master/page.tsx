@@ -19,15 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
+import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import { PermissionGate } from "@/components/ui/permission-gate";
 
 interface GstMaster {
@@ -144,41 +137,23 @@ export default function GstMasterPage() {
           </PermissionGate>
         </div>
 
-        <Card className="overflow-hidden border-0 shadow-lg">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead>Name</TableHead>
-                <TableHead>Rate</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">Loading GST masters…</TableCell></TableRow>
-              ) : gstMasters.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="py-10 text-center text-slate-500">No GST rates created yet.</TableCell></TableRow>
-              ) : (
-                gstMasters.map((gst) => (
-                  <TableRow key={gst._id}>
-                    <TableCell className="font-medium">{gst.name}</TableCell>
-                    <TableCell><span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700"><Percent className="h-3.5 w-3.5" />{gst.rate}</span></TableCell>
-                    <TableCell className="text-slate-500">{gst.description || "—"}</TableCell>
-                    <TableCell><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${gst.status === "Active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>{gst.status}</span></TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <PermissionGate module="products" action="update"><Button variant="ghost" size="icon" onClick={() => openEdit(gst)}><Pencil className="h-4 w-4" /></Button></PermissionGate>
-                        <PermissionGate module="products" action="delete"><Button variant="ghost" size="icon" onClick={() => remove(gst)} className="text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button></PermissionGate>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </Card>
+        {loading ? (
+          <Card className="py-10 text-center text-slate-500">Loading GST masters…</Card>
+        ) : (
+          <DataTable
+            title="GST rates"
+            data={gstMasters}
+            getRowId={(gst) => gst._id}
+            columns={[
+              { id: "name", accessorFn: (gst) => gst.name, header: "Name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
+              { id: "rate", accessorFn: (gst) => gst.rate, header: "Rate", cell: ({ row }) => <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-1 font-semibold text-indigo-700"><Percent className="h-3.5 w-3.5" />{row.original.rate}</span> },
+              { id: "description", accessorFn: (gst) => gst.description ?? "", header: "Description", cell: ({ row }) => <span className="text-slate-500">{row.original.description || "—"}</span> },
+              { id: "status", accessorFn: (gst) => gst.status, header: "Status", cell: ({ row }) => <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.original.status === "Active" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>{row.original.status}</span> },
+              { id: "actions", header: "Actions", enableSorting: false, meta: { className: "text-right" }, cell: ({ row }) => <div className="flex justify-end gap-1"><PermissionGate module="products" action="update"><Button variant="ghost" size="icon" onClick={() => openEdit(row.original)}><Pencil className="h-4 w-4" /></Button></PermissionGate><PermissionGate module="products" action="delete"><Button variant="ghost" size="icon" onClick={() => remove(row.original)} className="text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button></PermissionGate></div> },
+            ] satisfies DataTableColumnDef<GstMaster>[]}
+            emptyState={<Card className="py-10 text-center text-slate-500">No GST rates created yet.</Card>}
+          />
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>

@@ -5,6 +5,10 @@ import Sale from "@/models/Sale";
 import Employee from "@/models/Employee";
 import { authOptions } from "@/lib/authOptions";
 import { calculateSalePricing } from "@/lib/salePricing";
+import { PipelineStage, Types } from "mongoose";
+
+const escapeRegex = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // GET all sales
 export async function GET(request: NextRequest) {
@@ -18,15 +22,262 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get("employeeId");
+    const usesDataTable =
+      searchParams.has("page") ||
+      searchParams.has("limit") ||
+      searchParams.has("search") ||
+      searchParams.has("paymentMethod") ||
+      searchParams.has("sortBy") ||
+      searchParams.has("sortOrder");
 
-    const query = employeeId ? { employee: employeeId } : {};
+    // Preserve the existing employee-details API response until that screen is
+    // migrated to server pagination separately.
+    if (!usesDataTable) {
+      const legacyQuery = employeeId ? { employee: employeeId } : {};
+      const sales = await Sale.find(legacyQuery)
+        .populate("employee", "fullName profilePhoto")
+        .populate("items.product", "title photo")
+        .sort({ createdAt: -1 });
+      return NextResponse.json(sales);
+    }
 
-    const sales = await Sale.find(query)
+    const requestedPage = Number.parseInt(searchParams.get("page") || "1", 10);
+    const requestedLimit = Number.parseInt(
+      searchParams.get("limit") || "10",
+      10,
+    );
+    const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, requestedLimit))
+      : 10;
+    const search = searchParams.get("search")?.trim() || "";
+    const paymentMethod = searchParams.get("paymentMethod");
+    const sortBy = searchParams.get("sortBy") || "date";
+    const sortOrder = searchParams.get("sortOrder") === "asc" ? 1 : -1;
+
+    const match: Record<string, unknown> = {};
+    if (employeeId && Types.ObjectId.isValid(employeeId)) {
+      match.employee = new Types.ObjectId(employeeId);
+    }
+    if (paymentMethod === "Cash" || paymentMethod === "Online") {
+      match.paymentMethod = paymentMethod;
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), "i");
+      const matchingEmployees = await Employee.find({
+        fullName: searchRegex,
+      }).select("_id");
+      match.$or = [
+        { "customer.name": searchRegex },
+        { "customer.phone": searchRegex },
+        { "customer.email": searchRegex },
+        { employee: { $in: matchingEmployees.map((employee) => employee._id) } },
+      ];
+    }
+
+    const total = await Sale.countDocuments(match);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const currentPage = Math.min(page, totalPages);
+
+    const pipeline: PipelineStage[] = [{ $match: match }];
+    if (sortBy === "employee") {
+      pipeline.push(
+        {
+          $lookup: {
+            from: "employees",
+            localField: "employee",
+            foreignField: "_id",
+            as: "sortEmployee",
+          },
+        },
+        {
+          $addFields: {
+            employeeSortName: {
+              $toLower: {
+                $ifNull: [{ $arrayElemAt: ["$sortEmployee.fullName", 0] }, ""],
+              },
+            },
+          },
+        },
+      );
+    }
+    if (sortBy === "collected") {
+      pipeline.push({
+        $addFields: {
+          collectedSortAmount: {
+            $cond: [
+              { $gt: [{ $size: { $ifNull: ["$payments", []] } }, 0] },
+              {
+                $sum: {
+                  $map: {
+                    input: { $ifNull: ["$payments", []] },
+                    as: "payment",
+                    in: "$$payment.amount",
+                  },
+                },
+              },
+              {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ["$paymentStatus", "Paid"] },
+                      { $eq: [{ $type: "$paymentStatus" }, "missing"] },
+                    ],
+                  },
+                  "$totalAmount",
+                  { $ifNull: ["$paidAmount", 0] },
+                ],
+              },
+            ],
+          },
+        },
+      });
+    }
+
+    const sortFields: Record<string, string> = {
+      date: "createdAt",
+      employee: "employeeSortName",
+      customer: "customer.name",
+      total: "totalAmount",
+      collected: "collectedSortAmount",
+    };
+    const sortField = sortFields[sortBy] || "createdAt";
+    pipeline.push(
+      { $sort: { [sortField]: sortOrder, _id: sortOrder } },
+      { $skip: (currentPage - 1) * limit },
+      { $limit: limit },
+      { $project: { _id: 1 } },
+    );
+
+    const pageIds = await Sale.aggregate<{ _id: Types.ObjectId }>(pipeline);
+    const pageSales = await Sale.find({
+      _id: { $in: pageIds.map((sale) => sale._id) },
+    })
       .populate("employee", "fullName profilePhoto")
-      .populate("items.product", "title photo")
-      .sort({ createdAt: -1 });
+      .populate("items.product", "title photo");
+    const salesById = new Map(
+      pageSales.map((sale) => [sale._id.toString(), sale]),
+    );
+    const sales = pageIds
+      .map(({ _id }) => salesById.get(_id.toString()))
+      .filter(Boolean);
 
-    return NextResponse.json(sales);
+    const [collectionTotals] = await Sale.aggregate<{
+      cash: number;
+      online: number;
+    }>([
+      { $match: match },
+      {
+        $project: {
+          payments: { $ifNull: ["$payments", []] },
+          paymentMethod: 1,
+          paymentStatus: 1,
+          totalAmount: 1,
+        },
+      },
+      {
+        $project: {
+          cash: {
+            $cond: [
+              { $gt: [{ $size: "$payments" }, 0] },
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$payments",
+                        as: "payment",
+                        cond: { $eq: ["$$payment.method", "Cash"] },
+                      },
+                    },
+                    as: "payment",
+                    in: "$$payment.amount",
+                  },
+                },
+              },
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$paymentMethod", "Cash"] },
+                      {
+                        $or: [
+                          { $eq: ["$paymentStatus", "Paid"] },
+                          { $eq: [{ $type: "$paymentStatus" }, "missing"] },
+                        ],
+                      },
+                    ],
+                  },
+                  "$totalAmount",
+                  0,
+                ],
+              },
+            ],
+          },
+          online: {
+            $cond: [
+              { $gt: [{ $size: "$payments" }, 0] },
+              {
+                $sum: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$payments",
+                        as: "payment",
+                        cond: { $eq: ["$$payment.method", "Online"] },
+                      },
+                    },
+                    as: "payment",
+                    in: "$$payment.amount",
+                  },
+                },
+              },
+              {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$paymentMethod", "Online"] },
+                      {
+                        $or: [
+                          { $eq: ["$paymentStatus", "Paid"] },
+                          { $eq: [{ $type: "$paymentStatus" }, "missing"] },
+                        ],
+                      },
+                    ],
+                  },
+                  "$totalAmount",
+                  0,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          cash: { $sum: "$cash" },
+          online: { $sum: "$online" },
+        },
+      },
+    ]);
+
+    return NextResponse.json({
+      sales,
+      pagination: {
+        page: currentPage,
+        limit,
+        total,
+        totalPages,
+        hasPrevious: currentPage > 1,
+        hasNext: currentPage < totalPages,
+      },
+      collectionTotals: {
+        cash: collectionTotals?.cash || 0,
+        online: collectionTotals?.online || 0,
+      },
+    });
   } catch (error) {
     console.error("Error fetching sales:", error);
     return NextResponse.json(
@@ -143,6 +394,16 @@ export async function POST(request: NextRequest) {
       subtotal: pricing.subtotal,
       totalGst: pricing.totalGst,
       totalAmount: pricing.totalAmount,
+      paidAmount: pricing.totalAmount,
+      remainingAmount: 0,
+      paymentStatus: "Paid",
+      payments: [
+        {
+          amount: pricing.totalAmount,
+          method: paymentMethod,
+          collectedAt: new Date(),
+        },
+      ],
     });
 
     // Deduct quantities from employee's products

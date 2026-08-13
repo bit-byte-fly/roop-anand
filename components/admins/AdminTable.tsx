@@ -1,14 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -58,43 +50,19 @@ export function AdminTable({
     }, 0);
   };
 
-  // Sort admins: super-admin first
   const sortedAdmins = [...admins].sort((a, b) => {
     if (a.role === "super-admin" && b.role !== "super-admin") return -1;
     if (a.role !== "super-admin" && b.role === "super-admin") return 1;
     return 0;
   });
 
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-slate-50">
-            <TableHead className="font-semibold">Admin</TableHead>
-            <TableHead className="font-semibold">Role</TableHead>
-            <TableHead className="font-semibold">Permissions</TableHead>
-            <TableHead className="font-semibold">Status</TableHead>
-            <TableHead className="font-semibold">Created</TableHead>
-            <TableHead className="text-right font-semibold">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedAdmins.map((admin, index) => {
-            const isSuperAdmin = admin.role === "super-admin";
-
-            return (
-              <motion.tr
-                key={admin._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`hover:bg-slate-50 transition-colors ${
-                  isSuperAdmin
-                    ? "bg-gradient-to-r from-amber-50/80 to-yellow-50/50 border-l-4 border-l-amber-400"
-                    : ""
-                }`}
-              >
-                <TableCell>
+  const columns: DataTableColumnDef<AdminData>[] = [
+    {
+      id: "admin", accessorFn: (admin) => admin.name || admin.email, header: "Admin",
+      cell: ({ row }) => {
+        const admin = row.original;
+        const isSuperAdmin = admin.role === "super-admin";
+        return (
                   <div className="flex items-center gap-3">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
@@ -126,8 +94,14 @@ export function AdminTable({
                       <p className="text-sm text-slate-500">{admin.email}</p>
                     </div>
                   </div>
-                </TableCell>
-                <TableCell>
+        );
+      },
+    },
+    {
+      id: "role", accessorFn: (admin) => admin.role, header: "Role",
+      cell: ({ row }) => {
+        const isSuperAdmin = row.original.role === "super-admin";
+        return (
                   <Badge
                     variant={isSuperAdmin ? "default" : "secondary"}
                     className={
@@ -146,16 +120,22 @@ export function AdminTable({
                       </>
                     )}
                   </Badge>
-                </TableCell>
-                <TableCell>
+        );
+      },
+    },
+    {
+      id: "permissions", accessorFn: (admin) => admin.role === "super-admin" ? Number.MAX_SAFE_INTEGER : countPermissions(admin.permissions), header: "Permissions",
+      cell: ({ row }) => (
                   <span className="text-sm text-slate-600">
-                    {isSuperAdmin
+                    {row.original.role === "super-admin"
                       ? "Full Access"
-                      : `${countPermissions(admin.permissions)} actions`}
+                      : `${countPermissions(row.original.permissions)} actions`}
                   </span>
-                </TableCell>
-                <TableCell>
-                  {admin.isActive ? (
+      ),
+    },
+    {
+      id: "status", accessorFn: (admin) => admin.isActive ? 1 : 0, header: "Status",
+      cell: ({ row }) => row.original.isActive ? (
                     <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                       Active
                     </Badge>
@@ -166,14 +146,22 @@ export function AdminTable({
                     >
                       <ShieldOff className="h-3 w-3 mr-1" /> Inactive
                     </Badge>
-                  )}
-                </TableCell>
-                <TableCell>
+                  ),
+    },
+    {
+      id: "created", accessorFn: (admin) => new Date(admin.createdAt).getTime(), header: "Created",
+      cell: ({ row }) => (
                   <span className="text-sm text-slate-600">
-                    {formatDate(admin.createdAt)}
+                    {formatDate(row.original.createdAt)}
                   </span>
-                </TableCell>
-                <TableCell className="text-right">
+      ),
+    },
+    {
+      id: "actions", header: "Actions", enableSorting: false, meta: { className: "text-right" },
+      cell: ({ row }) => {
+        const admin = row.original;
+        const isSuperAdmin = admin.role === "super-admin";
+        return (
                   <div className="flex items-center justify-end gap-2">
                     {/* Sub-admins: can edit all and delete (except self) */}
                     {!isSuperAdmin && (
@@ -216,12 +204,10 @@ export function AdminTable({
                       </span>
                     )}
                   </div>
-                </TableCell>
-              </motion.tr>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
-  );
+        );
+      },
+    },
+  ];
+
+  return <DataTable columns={columns} data={sortedAdmins} title="Administrators" getRowId={(admin) => admin._id} />;
 }

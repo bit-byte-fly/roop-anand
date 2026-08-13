@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { PaginationState, SortingState } from "@tanstack/react-table";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, Loader2, ShoppingBag, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,12 @@ interface SaleItem {
   totalPrice: number;
 }
 
+interface SalePayment {
+  amount: number;
+  method: "Cash" | "Online";
+  collectedAt: string;
+}
+
 interface Sale {
   _id: string;
   employee: {
@@ -58,6 +65,10 @@ interface Sale {
   subtotal?: number;
   totalGst?: number;
   totalAmount: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentStatus?: "Paid" | "Partial" | "Unpaid";
+  payments?: SalePayment[];
   createdAt: string;
 }
 
@@ -71,6 +82,19 @@ export default function SalesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingSale, setViewingSale] = useState<Sale | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [collectionTotals, setCollectionTotals] = useState({
+    cash: 0,
+    online: 0,
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "date", desc: true },
+  ]);
 
   // Filters
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
@@ -79,17 +103,47 @@ export default function SalesPage() {
   const fetchSales = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/sales");
+      const params = new URLSearchParams({
+        page: String(pagination.pageIndex + 1),
+        limit: String(pagination.pageSize),
+        sortBy: sorting[0]?.id ?? "date",
+        sortOrder: sorting[0]?.desc === false ? "asc" : "desc",
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (paymentFilter !== "all") {
+        params.set("paymentMethod", paymentFilter);
+      }
+
+      const res = await fetch(`/api/sales?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setSales(data);
+        setSales(data.sales);
+        setTotal(data.pagination.total);
+        setCollectionTotals(data.collectionTotals);
+
+        const serverPageIndex = data.pagination.page - 1;
+        if (serverPageIndex !== pagination.pageIndex) {
+          setPagination((current) => ({
+            ...current,
+            pageIndex: serverPageIndex,
+          }));
+        }
       }
     } catch (error) {
       console.error("Error fetching sales:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedSearch, pagination, paymentFilter, sorting]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPagination((current) => ({ ...current, pageIndex: 0 }));
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchSales();
@@ -152,29 +206,8 @@ export default function SalesPage() {
     }
   };
 
-  // Filter sales
-  const filteredSales = sales.filter((sale) => {
-    // Search filter
-    const matchesSearch =
-      sale.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.customer.phone.includes(searchQuery) ||
-      sale.employee?.fullName
-        ?.toLowerCase()
-        .includes(searchQuery.toLowerCase());
-
-    // Payment filter
-    const matchesPayment =
-      paymentFilter === "all" || sale.paymentMethod === paymentFilter;
-
-    return matchesSearch && matchesPayment;
-  });
-
-  const cashTotal = sales
-    .filter((s) => s.paymentMethod === "Cash")
-    .reduce((sum, s) => sum + s.totalAmount, 0);
-  const onlineTotal = sales
-    .filter((s) => s.paymentMethod === "Online")
-    .reduce((sum, s) => sum + s.totalAmount, 0);
+  const cashTotal = collectionTotals.cash;
+  const onlineTotal = collectionTotals.online;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -187,6 +220,7 @@ export default function SalesPage() {
   const clearFilters = () => {
     setPaymentFilter("all");
     setSearchQuery("");
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
   };
 
   const hasActiveFilters = paymentFilter !== "all" || searchQuery;
@@ -211,13 +245,13 @@ export default function SalesPage() {
             <div className="flex flex-wrap items-center gap-4 mt-1">
               <p className="text-slate-600">
                 Manage sales records
-                {sales.length > 0 && (
+                {total > 0 && (
                   <span className="ml-2 text-indigo-600 font-medium">
-                    ({sales.length} records)
+                    ({total} records)
                   </span>
                 )}
               </p>
-              {sales.length > 0 && (
+              {total > 0 && (
                 <div className="flex items-center gap-3 text-sm">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-green-500"></span>
@@ -295,9 +329,13 @@ export default function SalesPage() {
                     </span>
                     <Select
                       value={paymentFilter}
-                      onValueChange={(v) =>
-                        setPaymentFilter(v as PaymentFilter)
-                      }
+                      onValueChange={(v) => {
+                        setPaymentFilter(v as PaymentFilter);
+                        setPagination((current) => ({
+                          ...current,
+                          pageIndex: 0,
+                        }));
+                      }}
                     >
                       <SelectTrigger className="w-32 bg-white">
                         <SelectValue />
@@ -340,7 +378,7 @@ export default function SalesPage() {
               <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mb-4" />
               <p className="text-slate-500">Loading sales...</p>
             </motion.div>
-          ) : filteredSales.length === 0 && hasActiveFilters ? (
+          ) : total === 0 && hasActiveFilters ? (
             <motion.div
               key="no-results"
               initial={{ opacity: 0, y: 20 }}
@@ -357,7 +395,7 @@ export default function SalesPage() {
                 Clear Filters
               </Button>
             </motion.div>
-          ) : sales.length === 0 ? (
+          ) : total === 0 ? (
             <motion.div
               key="empty"
               initial={{ opacity: 0, y: 20 }}
@@ -391,7 +429,12 @@ export default function SalesPage() {
               transition={{ duration: 0.3 }}
             >
               <SalesTable
-                sales={filteredSales}
+                sales={sales}
+                pagination={pagination}
+                sorting={sorting}
+                total={total}
+                onPaginationChange={setPagination}
+                onSortingChange={setSorting}
                 onView={handleView}
                 onDelete={handleDelete}
               />

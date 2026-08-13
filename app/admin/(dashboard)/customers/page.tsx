@@ -55,14 +55,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable, type DataTableColumnDef } from "@/components/ui/data-table";
 
 interface ProductInRequest {
   product: {
@@ -487,34 +480,18 @@ export default function CustomersPage() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100">
-                      <TableHead className="font-semibold text-slate-700">
-                        Name
-                      </TableHead>
-                      <TableHead className="font-semibold text-slate-700">
-                        Contact
-                      </TableHead>
-                      <TableHead className="font-semibold text-slate-700">
-                        Joined
-                      </TableHead>
-                      <TableHead className="text-right font-semibold text-slate-700">
-                        Actions
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {customers.map((customer, index) => (
-                      <motion.tr
-                        key={customer._id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="hover:bg-slate-50/50 transition-colors border-b border-slate-100"
-                      >
-                        <TableCell>
+              <DataTable
+                title="Customers"
+                data={customers}
+                getRowId={(customer) => customer._id}
+                columns={[
+                  {
+                    id: "name",
+                    accessorFn: (customer) => customer.name,
+                    header: "Name",
+                    cell: ({ row }) => {
+                      const customer = row.original;
+                      return (
                           <div className="flex items-center gap-3">
                             <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
                               {customer.name.charAt(0).toUpperCase()}
@@ -532,8 +509,16 @@ export default function CustomersPage() {
                               )}
                             </div>
                           </div>
-                        </TableCell>
-                        <TableCell>
+                      );
+                    },
+                  },
+                  {
+                    id: "contact",
+                    accessorFn: (customer) => `${customer.phone} ${customer.email ?? ""}`,
+                    header: "Contact",
+                    cell: ({ row }) => {
+                      const customer = row.original;
+                      return (
                           <div className="space-y-1">
                             <p className="text-sm text-slate-700 flex items-center gap-1.5">
                               <Phone className="h-3.5 w-3.5 text-slate-400" />
@@ -546,19 +531,31 @@ export default function CustomersPage() {
                               </p>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell>
+                      );
+                    },
+                  },
+                  {
+                    id: "createdAt",
+                    accessorFn: (customer) => new Date(customer.createdAt).getTime(),
+                    header: "Joined",
+                    cell: ({ row }) => (
                           <p className="text-sm text-slate-600">
-                            {formatDate(customer.createdAt)}
+                            {formatDate(row.original.createdAt)}
                           </p>
-                        </TableCell>
-                        <TableCell className="text-right">
+                    ),
+                  },
+                  {
+                    id: "actions",
+                    header: "Actions",
+                    enableSorting: false,
+                    meta: { className: "text-right" },
+                    cell: ({ row }) => (
                           <div className="flex items-center justify-end gap-2">
                             <Button
                               variant="outline"
                               size="sm"
                               className="gap-1.5 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
-                              onClick={() => handleViewDetails(customer)}
+                              onClick={() => handleViewDetails(row.original)}
                             >
                               <Eye className="h-4 w-4" />
                               View
@@ -568,17 +565,15 @@ export default function CustomersPage() {
                               variant="ghost"
                               size="sm"
                               className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => showDeleteConfirm(customer._id)}
+                              onClick={() => showDeleteConfirm(row.original._id)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    ),
+                  },
+                ] satisfies DataTableColumnDef<Customer>[]}
+              />
             </motion.div>
           )}
         </AnimatePresence>

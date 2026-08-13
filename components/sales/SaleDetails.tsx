@@ -22,7 +22,10 @@ import {
   CreditCard,
   Banknote,
   Calendar,
+  CheckCircle2,
+  Clock3,
   Download,
+  History,
   ImageOff,
   Loader2,
   Share2,
@@ -44,6 +47,12 @@ interface SaleItem {
   totalPrice: number;
 }
 
+interface SalePayment {
+  amount: number;
+  method: "Cash" | "Online";
+  collectedAt: string;
+}
+
 interface Sale {
   _id: string;
   employee: {
@@ -63,6 +72,10 @@ interface Sale {
   subtotal?: number;
   totalGst?: number;
   totalAmount: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentStatus?: "Paid" | "Partial" | "Unpaid";
+  payments?: SalePayment[];
   createdAt: string;
 }
 
@@ -110,6 +123,29 @@ const formatCurrency = (amount: number) =>
     currency: "INR",
     minimumFractionDigits: 2,
   }).format(amount);
+
+const getPaymentSummary = (sale: Sale) => {
+  const payments = sale.payments || [];
+  const collectedFromHistory = payments.reduce(
+    (sum, payment) => sum + payment.amount,
+    0,
+  );
+  const isLegacyPaidSale =
+    (sale.paymentStatus === "Paid" || sale.paymentStatus === undefined) &&
+    (sale.paidAmount === 0 || sale.paidAmount === undefined) &&
+    (sale.remainingAmount === 0 || sale.remainingAmount === undefined) &&
+    payments.length === 0;
+  const paidAmount = isLegacyPaidSale
+    ? sale.totalAmount
+    : (sale.paidAmount ?? collectedFromHistory);
+  const remainingAmount = isLegacyPaidSale
+    ? 0
+    : (sale.remainingAmount ?? Math.max(0, sale.totalAmount - paidAmount));
+  const paymentStatus =
+    remainingAmount <= 0 ? "Paid" : paidAmount > 0 ? "Partial" : "Unpaid";
+
+  return { payments, paidAmount, remainingAmount, paymentStatus };
+};
 
 const escapeHtml = (value: unknown) =>
   String(value ?? "")
@@ -179,6 +215,7 @@ function buildSaleInvoiceHtml(
   sale: Sale,
   organization: OrganizationSettings
 ) {
+  const paymentSummary = getPaymentSummary(sale);
   const subtotal =
     sale.subtotal ??
     sale.items.reduce(
@@ -302,7 +339,8 @@ function buildSaleInvoiceHtml(
             <h2>Sale Details</h2>
             <p><span class="label">Sold by:</span> ${escapeHtml(sale.employee?.fullName || "Admin")}</p>
             <p><span class="label">Items:</span> ${sale.items.length}</p>
-            <p><span class="label">Payment method:</span> ${escapeHtml(sale.paymentMethod)}</p>
+            <p><span class="label">Payment status:</span> ${escapeHtml(paymentSummary.paymentStatus === "Unpaid" ? "Udhar" : paymentSummary.paymentStatus)}</p>
+            ${paymentSummary.paidAmount > 0 ? `<p><span class="label">Initial method:</span> ${escapeHtml(sale.paymentMethod)}</p>` : ""}
           </div>
         </section>
 
@@ -324,6 +362,8 @@ function buildSaleInvoiceHtml(
         <table class="totals">
           <tr><td class="label">Subtotal</td><td class="right">${escapeHtml(formatCurrency(subtotal))}</td></tr>
           <tr><td class="label">GST</td><td class="right">${escapeHtml(formatCurrency(totalGst))}</td></tr>
+          <tr><td class="label">Paid</td><td class="right">${escapeHtml(formatCurrency(paymentSummary.paidAmount))}</td></tr>
+          ${paymentSummary.remainingAmount > 0 ? `<tr><td class="label">Amount due</td><td class="right">${escapeHtml(formatCurrency(paymentSummary.remainingAmount))}</td></tr>` : ""}
           <tr class="grand"><td>Grand Total</td><td class="right">${escapeHtml(formatCurrency(sale.totalAmount))}</td></tr>
         </table>
 
@@ -334,6 +374,7 @@ function buildSaleInvoiceHtml(
 }
 
 function buildShareText(sale: Sale) {
+  const paymentSummary = getPaymentSummary(sale);
   const itemLines = sale.items.map(
     (item) =>
       `${item.productTitle} x ${item.quantity}: ${formatCurrency(item.totalPrice)}`
@@ -345,7 +386,9 @@ function buildShareText(sale: Sale) {
     ...itemLines,
     `GST: ${formatCurrency(sale.totalGst || 0)}`,
     `Total: ${formatCurrency(sale.totalAmount)}`,
-    `Payment: ${sale.paymentMethod}`,
+    `Paid: ${formatCurrency(paymentSummary.paidAmount)}`,
+    `Due: ${formatCurrency(paymentSummary.remainingAmount)}`,
+    `Status: ${paymentSummary.paymentStatus === "Unpaid" ? "Udhar" : paymentSummary.paymentStatus}`,
   ].join("\n");
 }
 
@@ -383,6 +426,14 @@ export function SaleDetails({ sale, isOpen, onClose }: SaleDetailsProps) {
   >(null);
 
   if (!sale) return null;
+
+  const paymentSummary = getPaymentSummary(sale);
+  const statusClasses =
+    paymentSummary.paymentStatus === "Paid"
+      ? "bg-emerald-100 text-emerald-700"
+      : paymentSummary.paymentStatus === "Partial"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-red-100 text-red-700";
 
   const handleDownloadInvoice = async () => {
     setInvoiceAction("download");
@@ -460,6 +511,109 @@ export function SaleDetails({ sale, isOpen, onClose }: SaleDetailsProps) {
               {sale.paymentMethod}
             </span>
           </div>
+
+          {/* Payment summary and every collection recorded for this sale */}
+          <Card className="overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <History className="h-4 w-4 text-indigo-600" />
+                <h3 className="font-semibold text-slate-800">
+                  Collection History
+                </h3>
+                <span className="text-xs text-slate-500">
+                  ({paymentSummary.payments.length})
+                </span>
+              </div>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${statusClasses}`}
+              >
+                {paymentSummary.paymentStatus === "Paid" && (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+                {paymentSummary.paymentStatus === "Unpaid"
+                  ? "Udhar"
+                  : paymentSummary.paymentStatus}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 divide-x border-b">
+              <div className="p-3 text-center">
+                <p className="text-xs text-slate-500">Sale total</p>
+                <p className="mt-1 font-semibold text-slate-800">
+                  {formatCurrency(sale.totalAmount)}
+                </p>
+              </div>
+              <div className="p-3 text-center">
+                <p className="text-xs text-slate-500">Collected</p>
+                <p className="mt-1 font-semibold text-emerald-600">
+                  {formatCurrency(paymentSummary.paidAmount)}
+                </p>
+              </div>
+              <div className="p-3 text-center">
+                <p className="text-xs text-slate-500">Remaining</p>
+                <p
+                  className={`mt-1 font-semibold ${
+                    paymentSummary.remainingAmount > 0
+                      ? "text-amber-600"
+                      : "text-slate-500"
+                  }`}
+                >
+                  {formatCurrency(paymentSummary.remainingAmount)}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4">
+              {paymentSummary.payments.length > 0 ? (
+                <div className="space-y-3">
+                  {paymentSummary.payments.map((payment, index) => (
+                    <div
+                      key={`${payment.collectedAt}-${index}`}
+                      className="flex items-center gap-3 rounded-lg border border-slate-200 p-3"
+                    >
+                      <div
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                          payment.method === "Cash"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {payment.method === "Cash" ? (
+                          <Banknote className="h-4 w-4" />
+                        ) : (
+                          <CreditCard className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-800">
+                          Collection #{index + 1} · {payment.method}
+                        </p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                          <Clock3 className="h-3 w-3" />
+                          {format(
+                            new Date(payment.collectedAt),
+                            "dd MMM yyyy, h:mm a",
+                          )}
+                        </p>
+                      </div>
+                      <p className="font-bold text-emerald-700">
+                        +{formatCurrency(payment.amount)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : paymentSummary.paymentStatus === "Paid" ? (
+                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                  This historical sale was paid before collection-by-collection
+                  tracking was enabled.
+                </p>
+              ) : (
+                <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
+                  No collection has been recorded for this sale yet.
+                </p>
+              )}
+            </div>
+          </Card>
 
           {/* Employee */}
           <Card className="p-4">

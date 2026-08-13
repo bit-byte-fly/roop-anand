@@ -43,6 +43,7 @@ interface AdminFormProps {
 const MODULES_ORDER: PermissionModule[] = [
   "dashboard",
   "products",
+  "gifts",
   "employees",
   "customers",
   "productRequests",

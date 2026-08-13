@@ -6,6 +6,7 @@ import { Permissions, PermissionModule, PermissionAction, AdminRole, StandardAct
 export const SUPER_ADMIN_PERMISSIONS: Permissions = {
   dashboard: ['read'],
   products: ['read', 'create', 'update', 'delete', 'toggleStatus'],
+  gifts: ['read', 'create', 'update', 'delete'],
   employees: ['read', 'create', 'update', 'delete', 'toggleStatus', 'assignProducts'],
   customers: ['read', 'update', 'delete'],
   productRequests: ['read', 'update', 'delete', 'updateStatus', 'manageNotes'],
@@ -28,6 +29,7 @@ export const DEFAULT_SUB_ADMIN_PERMISSIONS: Permissions = {
 export const MODULE_LABELS: Record<PermissionModule, string> = {
   dashboard: 'Dashboard',
   products: 'Products',
+  gifts: 'Gift Schemes',
   employees: 'Employees',
   customers: 'Customers',
   productRequests: 'Product Requests',
@@ -43,6 +45,7 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
 export const MODULE_STANDARD_ACTIONS: Record<PermissionModule, StandardAction[]> = {
   dashboard: ['read'],
   products: ['read', 'create', 'update', 'delete'],
+  gifts: ['read', 'create', 'update', 'delete'],
   employees: ['read', 'create', 'update', 'delete'],
   customers: ['read', 'update', 'delete'], // No create - customers sign up via mobile
   productRequests: ['read', 'update', 'delete'], // No create - requests come from customers
@@ -58,6 +61,7 @@ export const MODULE_STANDARD_ACTIONS: Record<PermissionModule, StandardAction[]>
 export const MODULE_SPECIAL_ACTIONS: Record<PermissionModule, SpecialAction[]> = {
   dashboard: [],
   products: ['toggleStatus'],
+  gifts: [],
   employees: ['toggleStatus', 'assignProducts'],
   customers: [],
   productRequests: ['updateStatus', 'manageNotes'],
@@ -73,6 +77,7 @@ export const MODULE_SPECIAL_ACTIONS: Record<PermissionModule, SpecialAction[]> =
 export const MODULE_ACTIONS: Record<PermissionModule, PermissionAction[]> = {
   dashboard: ['read'],
   products: ['read', 'create', 'update', 'delete', 'toggleStatus'],
+  gifts: ['read', 'create', 'update', 'delete'],
   employees: ['read', 'create', 'update', 'delete', 'toggleStatus', 'assignProducts'],
   customers: ['read', 'update', 'delete'],
   productRequests: ['read', 'update', 'delete', 'updateStatus', 'manageNotes'],

@@ -18,6 +18,7 @@ export type PermissionAction = StandardAction | SpecialAction;
 export type PermissionModule = 
   | 'dashboard' 
   | 'products' 
+  | 'gifts'
   | 'employees' 
   | 'customers' 
   | 'productRequests' 

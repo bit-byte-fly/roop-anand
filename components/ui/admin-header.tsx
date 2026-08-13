@@ -34,6 +34,7 @@ const routeLabels: Record<string, string> = {
   customers: "Customers",
   products: "Products",
   "gst-master": "GST Master",
+  gifts: "Gift Schemes",
   "product-requests": "Product Requests",
   sales: "Sales",
   requests: "Requests",

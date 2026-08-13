@@ -17,6 +17,7 @@ import {
 const MODULE_PATHS: Record<PermissionModule, string> = {
   dashboard: "/admin",
   products: "/admin/products",
+  gifts: "/admin/gifts",
   employees: "/admin/employees",
   customers: "/admin/customers",
   productRequests: "/admin/product-requests",
@@ -29,6 +30,7 @@ const MODULE_PATHS: Record<PermissionModule, string> = {
 // Order of modules to check for first accessible page
 const MODULE_ORDER: PermissionModule[] = [
   "products",
+  "gifts",
   "employees",
   "customers",
   "productRequests",

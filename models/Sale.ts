@@ -21,15 +21,28 @@ export interface ICustomer {
   billingAddress?: string;
 }
 
+export type PaymentMethod = "Cash" | "Online";
+export type PaymentStatus = "Paid" | "Partial" | "Unpaid";
+
+export interface ISalePayment {
+  amount: number;
+  method: PaymentMethod;
+  collectedAt: Date;
+}
+
 export interface ISale extends Document {
   employee: Types.ObjectId;
   productRequest?: Types.ObjectId;
   items: ISaleItem[];
   customer: ICustomer;
-  paymentMethod: "Cash" | "Online";
+  paymentMethod: PaymentMethod;
   subtotal: number;
   totalGst: number;
   totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: PaymentStatus;
+  payments: ISalePayment[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -117,6 +130,27 @@ const CustomerSchema = new Schema<ICustomer>(
   { _id: false }
 );
 
+const SalePaymentSchema = new Schema<ISalePayment>(
+  {
+    amount: {
+      type: Number,
+      required: true,
+      min: [0.01, "Payment amount must be greater than zero"],
+    },
+    method: {
+      type: String,
+      enum: ["Cash", "Online"],
+      required: true,
+    },
+    collectedAt: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 const SaleSchema = new Schema<ISale>(
   {
     employee: {
@@ -164,6 +198,28 @@ const SaleSchema = new Schema<ISale>(
       required: true,
       min: [0, "Total amount cannot be negative"],
     },
+    paidAmount: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: [0, "Paid amount cannot be negative"],
+    },
+    remainingAmount: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: [0, "Remaining amount cannot be negative"],
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["Paid", "Partial", "Unpaid"],
+      required: true,
+      default: "Paid",
+    },
+    payments: {
+      type: [SalePaymentSchema],
+      default: [],
+    },
   },
   {
     timestamps: true,
@@ -171,7 +227,11 @@ const SaleSchema = new Schema<ISale>(
 );
 
 // Refresh a cached development model created before request-linked sales.
-if (mongoose.models.Sale && !mongoose.models.Sale.schema.path("productRequest")) {
+if (
+  mongoose.models.Sale &&
+  (!mongoose.models.Sale.schema.path("productRequest") ||
+    !mongoose.models.Sale.schema.path("paidAmount"))
+) {
   mongoose.deleteModel("Sale");
 }
 

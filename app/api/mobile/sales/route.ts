@@ -84,6 +84,18 @@ export async function GET(request: NextRequest) {
 
     // Transform response
     const formattedSales = sales.map((sale) => {
+      const isLegacyPaidSale =
+        sale.paymentStatus === 'Paid' &&
+        sale.paidAmount === 0 &&
+        sale.remainingAmount === 0 &&
+        (sale.payments || []).length === 0 &&
+        sale.totalAmount > 0;
+      const paidAmount = isLegacyPaidSale
+        ? sale.totalAmount
+        : (sale.paidAmount ?? sale.totalAmount);
+      const remainingAmount = isLegacyPaidSale
+        ? 0
+        : (sale.remainingAmount ?? Math.max(0, sale.totalAmount - paidAmount));
       const items = (sale.items as unknown as PopulatedSaleItem[]).map((item) => ({
         productId: item.product?._id?.toString() || null,
         productTitle: item.productTitle,
@@ -105,6 +117,15 @@ export async function GET(request: NextRequest) {
         subtotal: sale.subtotal ?? sale.totalAmount,
         totalGst: sale.totalGst || 0,
         totalAmount: sale.totalAmount,
+        paidAmount,
+        remainingAmount,
+        paymentStatus:
+          remainingAmount === 0 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Unpaid',
+        payments: (sale.payments || []).map((payment) => ({
+          amount: payment.amount,
+          method: payment.method,
+          collectedAt: payment.collectedAt,
+        })),
         createdAt: sale.createdAt,
       };
     });
@@ -151,7 +172,7 @@ export async function POST(request: NextRequest) {
     await dbConnect();
 
     const body = await request.json();
-    const { items, customer, paymentMethod, productRequestId } = body;
+    const { items, customer, paymentMethod, paidAmount, productRequestId } = body;
 
     // Validate items
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -365,6 +386,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // paidAmount is optional for older app versions, which always create paid sales.
+    const normalizedPaidAmount =
+      paidAmount === undefined ? pricing.totalAmount : Number(paidAmount);
+    if (
+      !Number.isFinite(normalizedPaidAmount) ||
+      normalizedPaidAmount < 0 ||
+      normalizedPaidAmount > pricing.totalAmount
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Paid amount must be between 0 and ${pricing.totalAmount}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const normalizedRemainingAmount = Math.max(
+      0,
+      pricing.totalAmount - normalizedPaidAmount
+    );
+    const paymentStatus =
+      normalizedRemainingAmount === 0
+        ? 'Paid'
+        : normalizedPaidAmount > 0
+          ? 'Partial'
+          : 'Unpaid';
+
     // Create the sale
     const sale = await Sale.create({
       employee: user.id,
@@ -380,6 +429,13 @@ export async function POST(request: NextRequest) {
       subtotal: pricing.subtotal,
       totalGst: pricing.totalGst,
       totalAmount: pricing.totalAmount,
+      paidAmount: normalizedPaidAmount,
+      remainingAmount: normalizedRemainingAmount,
+      paymentStatus,
+      payments:
+        normalizedPaidAmount > 0
+          ? [{ amount: normalizedPaidAmount, method: paymentMethod }]
+          : [],
     }) as ISale;
 
     // Deduct quantities from employee's products
@@ -404,11 +460,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (paymentMethod === 'Cash') {
-      employee.holdings.cash += pricing.totalAmount;
+      employee.holdings.cash += normalizedPaidAmount;
     } else {
-      employee.holdings.online += pricing.totalAmount;
+      employee.holdings.online += normalizedPaidAmount;
     }
-    employee.holdings.total += pricing.totalAmount;
+    employee.holdings.total += normalizedPaidAmount;
 
     await employee.save();
 
@@ -477,6 +533,10 @@ export async function POST(request: NextRequest) {
         subtotal: sale.subtotal,
         totalGst: sale.totalGst,
         totalAmount: sale.totalAmount,
+        paidAmount: sale.paidAmount,
+        remainingAmount: sale.remainingAmount,
+        paymentStatus: sale.paymentStatus,
+        payments: sale.payments,
         createdAt: sale.createdAt,
       },
       updatedHoldings: {

@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
     const status = request.nextUrl.searchParams.get("status");
-    const query = status && status !== "all" ? { status } : {};
+    const query: { status?: "Active" | "Inactive" } = {};
+    if (status === "Active" || status === "Inactive") {
+      query.status = status;
+    }
     const gstMasters = await GstMaster.find(query).sort({ rate: 1, name: 1 });
     return NextResponse.json(gstMasters);
   } catch (error) {

@@ -955,13 +955,12 @@ export default function CustomersPage() {
                   </span>
                   <Select
                     value={selectedRequest.status}
-                    onValueChange={async (
-                      value:
+                    onValueChange={async (val: string) => {
+                      const value = val as
                         | "pending"
                         | "assigned"
                         | "ongoing"
-                        | "delivered"
-                    ) => {
+                        | "delivered";
                       setIsUpdatingRequest(true);
                       try {
                         const res = await fetch(
